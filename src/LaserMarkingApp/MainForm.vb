@@ -433,13 +433,13 @@ Public Class MainForm
             Throw New InvalidOperationException("QR output path is not configured.")
         End If
 
-        Dim directory = Path.GetDirectoryName(outputPath)
-        If String.IsNullOrWhiteSpace(directory) Then
+        Dim outputDirectory = System.IO.Path.GetDirectoryName(outputPath)
+        If String.IsNullOrWhiteSpace(outputDirectory) Then
             Throw New InvalidOperationException("QR output path must include a folder.")
         End If
 
-        Directory.CreateDirectory(directory)
-        Dim tempPath = Path.Combine(directory, $"{Path.GetFileName(outputPath)}.{Guid.NewGuid():N}.tmp")
+        System.IO.Directory.CreateDirectory(outputDirectory)
+        Dim tempPath = System.IO.Path.Combine(outputDirectory, $"{System.IO.Path.GetFileName(outputPath)}.{Guid.NewGuid():N}.tmp")
         File.WriteAllText(tempPath, qrData, Encoding.UTF8)
 
         If File.Exists(outputPath) Then
@@ -462,8 +462,8 @@ Public Class MainForm
             Throw New InvalidOperationException("Active template folder is not configured.")
         End If
 
-        Directory.CreateDirectory(activeFolder)
-        Dim destination = Path.Combine(activeFolder, Path.GetFileName(templateFile))
+        System.IO.Directory.CreateDirectory(activeFolder)
+        Dim destination = System.IO.Path.Combine(activeFolder, System.IO.Path.GetFileName(templateFile))
         File.Copy(templateFile, destination, True)
     End Sub
 
@@ -475,20 +475,20 @@ Public Class MainForm
             .CreateNoWindow = True
         }
 
-        Using process = Process.Start(startInfo)
-            If process Is Nothing Then
+        Using runningProcess = System.Diagnostics.Process.Start(startInfo)
+            If runningProcess Is Nothing Then
                 Throw New InvalidOperationException("External command could not be started.")
             End If
 
-            If Not process.WaitForExit(30000) Then
+            If Not runningProcess.WaitForExit(30000) Then
                 Try
-                    process.Kill()
+                    runningProcess.Kill()
                 Catch ex As InvalidOperationException
                 End Try
                 Throw New TimeoutException("External command timed out after 30 seconds.")
             End If
 
-            Return $"CommandExit{process.ExitCode}"
+            Return $"CommandExit{runningProcess.ExitCode}"
         End Using
     End Function
 End Class

@@ -7,17 +7,17 @@ Public NotInheritable Class AppPaths
 
     Public Shared ReadOnly Property DataDirectory As String
         Get
-            Dim path = Path.Combine(
+            Dim dataPath = System.IO.Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "LaserMarkingApp")
-            Directory.CreateDirectory(path)
-            Return path
+            System.IO.Directory.CreateDirectory(dataPath)
+            Return dataPath
         End Get
     End Property
 
     Public Shared ReadOnly Property DatabasePath As String
         Get
-            Return Path.Combine(DataDirectory, "laser_marking.db")
+            Return System.IO.Path.Combine(DataDirectory, "laser_marking.db")
         End Get
     End Property
 End Class
