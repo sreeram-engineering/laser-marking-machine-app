@@ -1,0 +1,39 @@
+name: Build Windows App
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Publish self-contained Windows builds
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Publish win-x64 and win-x86
+        shell: pwsh
+        run: ./scripts/publish-win.ps1
+
+      - name: Upload win-x64 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: laser-marking-machine-app-win-x64
+          path: dist/laser-marking-machine-app-win-x64.zip
+          if-no-files-found: error
+
+      - name: Upload win-x86 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: laser-marking-machine-app-win-x86
+          path: dist/laser-marking-machine-app-win-x86.zip
+          if-no-files-found: error

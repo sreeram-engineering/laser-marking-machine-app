@@ -21,6 +21,20 @@ Build on a Windows machine with the .NET SDK installed:
 
 Release zips are written to `dist\`.
 
+## Download From GitHub Actions
+
+The repository builds downloadable Windows app zips on every push to `main`, and can also be built manually.
+
+1. Open the GitHub repo.
+2. Go to `Actions`.
+3. Select `Build Windows App`.
+4. Open the latest successful run.
+5. Download one of the artifacts:
+   - `laser-marking-machine-app-win-x64`
+   - `laser-marking-machine-app-win-x86`
+
+Each artifact contains a zip with `LaserMarkingApp.exe` and the bundled .NET runtime files. Extract the zip on the marking PC and run `LaserMarkingApp.exe`.
+
 ## Default Paths
 
 - QR output: `C:\Laser\QRDATA.TXT`
