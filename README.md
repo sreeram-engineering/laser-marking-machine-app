@@ -21,9 +21,22 @@ Build on a Windows machine with the .NET SDK installed:
 
 Release zips are written to `dist\`.
 
+## Download From GitHub Releases
+
+The repository creates a GitHub Release after each successful build on `main`.
+
+1. Open the GitHub repo.
+2. Go to `Releases`.
+3. Open the latest `Laser Marking App Build ...` release.
+4. Download one of the assets:
+   - `laser-marking-machine-app-win-x64.zip`
+   - `laser-marking-machine-app-win-x86.zip`
+
+Extract the zip on the marking PC and run `LaserMarkingApp.exe`.
+
 ## Download From GitHub Actions
 
-The repository builds downloadable Windows app zips on every push to `main`, and can also be built manually.
+The repository also keeps downloadable Windows app zips on each workflow run.
 
 1. Open the GitHub repo.
 2. Go to `Actions`.

@@ -6,6 +6,9 @@ on:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     name: Publish self-contained Windows builds
@@ -37,3 +40,26 @@ jobs:
           name: laser-marking-machine-app-win-x86
           path: dist/laser-marking-machine-app-win-x86.zip
           if-no-files-found: error
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: build-${{ github.run_number }}
+          RELEASE_TITLE: Laser Marking App Build ${{ github.run_number }}
+        run: |
+          $notes = @"
+          Self-contained Windows builds.
+
+          Commit: $env:GITHUB_SHA
+
+          Downloads:
+          - laser-marking-machine-app-win-x64.zip
+          - laser-marking-machine-app-win-x86.zip
+          "@
+
+          gh release create $env:RELEASE_TAG `
+            dist/laser-marking-machine-app-win-x64.zip `
+            dist/laser-marking-machine-app-win-x86.zip `
+            --title $env:RELEASE_TITLE `
+            --notes $notes
