@@ -2,7 +2,7 @@
 
 Lean Windows WinForms app for EZCAD2-based QR marking workflows.
 
-The app is the source of truth for part data, user access, serial validation, duplicate prevention, QR construction, and production logging. EZCAD2 remains the marking engine and reads the generated QR payload from a text file.
+The app is the source of truth for part data, user access, generated serials, engraving text construction, and production logging. EZCAD2 remains the marking engine and reads the generated payload from a text file.
 
 ## Deployment
 
@@ -68,12 +68,12 @@ Change these before production use from `Setter Login` using the `admin` account
 
 ## Operator Flow
 
-1. Confirm the current part and vendor on screen.
-2. Enter the serial number.
+1. Confirm the current part and item code on screen.
+2. Enter the heat / lot number, for example `26-4B-21`.
 3. Press `MARK` or hit Enter.
-4. The app validates the serial, blocks duplicates, builds QR data, writes `QRDATA.TXT`, logs the mark, clears the serial field, and focuses the next entry.
+4. The app generates the next global serial, builds the full engraving string, writes `QRDATA.TXT`, logs the mark, clears the heat / lot field, and focuses the next entry.
 
-The operator cannot edit part, vendor, QR format, or template settings.
+The operator cannot edit part, item code, generated serial, date fields, QR format, or template settings.
 
 ## Setter Flow
 
@@ -92,26 +92,19 @@ Only Admin users can open `Users` from the setter screen. Admins can create user
 
 ## QR Format
 
-Default format:
+The app writes the full EZCAD text payload in this format:
 
 ```text
-{VendorCode}|{PartNumber}|{Serial}
+CustomerItemCode$PartNumber$DatePrefixSerial$Date$MonthLabel$HeatLot$Material$Pattern$Product$Supplier$
 ```
 
-Supported placeholders:
+Example:
 
-- `{VendorCode}`
-- `{PartNumber}`
-- `{PlantCode}`
-- `{CustomerCode}`
-- `{QRPrefix}`
-- `{Serial}`
-
-Default serial validation:
-
-```regex
-^\d{6}$
+```text
+7201097$B3F02001$26B-744$27.02.2026$FEB-26$26-4B-21$FG260$#.0$FLYWHEEL$SREERAMENGG$
 ```
+
+The serial number is generated globally across all parts. The date prefix uses `YYM-`, where `A=Jan`, `B=Feb`, through `L=Dec`.
 
 ## EZCAD2 Setup
 
