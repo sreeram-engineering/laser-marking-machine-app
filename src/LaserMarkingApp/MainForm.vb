@@ -88,7 +88,14 @@ Public Class MainForm
             serialLabel, _serialBox, markButton, _statusLabel, _loggedInLabel, exitButton, setterLoginButton
         })
 
-        _setterPanel = New Panel With {.Location = New Point(468, 24), .Size = New Size(488, 560), .BorderStyle = BorderStyle.FixedSingle, .Enabled = False}
+        _setterPanel = New Panel With {
+            .Location = New Point(468, 24),
+            .Size = New Size(488, 560),
+            .BorderStyle = BorderStyle.FixedSingle,
+            .Enabled = False,
+            .AutoScroll = True,
+            .AutoScrollMinSize = New Size(0, 610)
+        }
         Dim setterHeader = New Label With {.Text = "SETTER SETTINGS", .Font = New Font(Font, FontStyle.Bold), .Location = New Point(20, 18), .AutoSize = True}
         Dim logoutButton = New Button With {.Text = "Logout", .Location = New Point(382, 14), .Size = New Size(82, 32)}
         Dim partSelectLabel = New Label With {.Text = "Part", .Location = New Point(20, 62), .AutoSize = True}
@@ -104,10 +111,10 @@ Public Class MainForm
         _prefixBox = AddLabeledTextBox(_setterPanel, "Product", 282)
         _qrFormatBox = AddLabeledTextBox(_setterPanel, "Supplier", 320)
         _templateBox = AddLabeledTextBox(_setterPanel, "Template", 358)
-        _outputPathBox = AddLabeledTextBox(_setterPanel, "QR Output", 396)
-        _templateDirectoryBox = AddLabeledTextBox(_setterPanel, "Active Folder", 434)
-        _serialRegexBox = AddLabeledTextBox(_setterPanel, "Heat/Lot Rule", 472)
-        _externalCommandBox = AddLabeledTextBox(_setterPanel, "Command", 510)
+        _outputPathBox = AddLabeledTextBox(_setterPanel, "Engraving File", 396)
+        _templateDirectoryBox = AddLabeledTextBox(_setterPanel, "Active Template Folder", 434)
+        _serialRegexBox = New TextBox With {.Visible = False}
+        _externalCommandBox = AddLabeledTextBox(_setterPanel, "Command", 472)
         _setterStatusLabel = New Label With {.Location = New Point(94, 548), .Size = New Size(220, 24), .ForeColor = Color.DarkGreen}
 
         Dim browseButton = New Button With {.Text = "...", .Location = New Point(430, 356), .Size = New Size(34, 28)}
@@ -205,8 +212,8 @@ Public Class MainForm
     End Sub
 
     Private Function AddLabeledTextBox(parent As Control, labelText As String, y As Integer) As TextBox
-        Dim label = New Label With {.Text = labelText, .Location = New Point(20, y + 4), .Size = New Size(96, 24)}
-        Dim box = New TextBox With {.Location = New Point(120, y), .Width = 304}
+        Dim label = New Label With {.Text = labelText, .Location = New Point(20, y + 4), .Size = New Size(112, 24)}
+        Dim box = New TextBox With {.Location = New Point(136, y), .Width = 288}
         parent.Controls.Add(label)
         parent.Controls.Add(box)
         Return box
