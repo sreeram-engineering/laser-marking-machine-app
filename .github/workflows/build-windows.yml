@@ -31,14 +31,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: laser-marking-machine-app-win-x64
-          path: dist/laser-marking-machine-app-win-x64.zip
+          path: dist/LaserMarkingApp-win-x64.exe
           if-no-files-found: error
 
       - name: Upload win-x86 artifact
         uses: actions/upload-artifact@v4
         with:
           name: laser-marking-machine-app-win-x86
-          path: dist/laser-marking-machine-app-win-x86.zip
+          path: dist/LaserMarkingApp-win-x86.exe
           if-no-files-found: error
 
       - name: Create GitHub Release
@@ -54,12 +54,12 @@ jobs:
           Commit: $env:GITHUB_SHA
 
           Downloads:
-          - laser-marking-machine-app-win-x64.zip
-          - laser-marking-machine-app-win-x86.zip
+          - LaserMarkingApp-win-x64.exe
+          - LaserMarkingApp-win-x86.exe
           "@
 
           gh release create $env:RELEASE_TAG `
-            dist/laser-marking-machine-app-win-x64.zip `
-            dist/laser-marking-machine-app-win-x86.zip `
+            dist/LaserMarkingApp-win-x64.exe `
+            dist/LaserMarkingApp-win-x86.exe `
             --title $env:RELEASE_TITLE `
             --notes $notes

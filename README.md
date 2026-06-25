@@ -6,12 +6,12 @@ The app is the source of truth for part data, user access, serial validation, du
 
 ## Deployment
 
-This project targets .NET 8 Windows WinForms and is intended to be published as self-contained Windows folders:
+This project targets .NET 8 Windows WinForms and is intended to be published as self-contained Windows executables:
 
 - `win-x64`
 - `win-x86`
 
-The marking PC does not need a separate .NET install when using the published folders.
+The marking PC does not need a separate .NET install when using the published executables.
 
 Build on a Windows machine with the .NET SDK installed:
 
@@ -19,7 +19,7 @@ Build on a Windows machine with the .NET SDK installed:
 .\scripts\publish-win.ps1
 ```
 
-Release zips are written to `dist\`.
+Release executables are written to `dist\`.
 
 ## Download From GitHub Releases
 
@@ -29,14 +29,14 @@ The repository creates a GitHub Release after each successful build on `main`.
 2. Go to `Releases`.
 3. Open the latest `Laser Marking App Build ...` release.
 4. Download one of the assets:
-   - `laser-marking-machine-app-win-x64.zip`
-   - `laser-marking-machine-app-win-x86.zip`
+   - `LaserMarkingApp-win-x64.exe`
+   - `LaserMarkingApp-win-x86.exe`
 
-Extract the zip on the marking PC and run `LaserMarkingApp.exe`.
+Copy the `.exe` to the marking PC and run it.
 
 ## Download From GitHub Actions
 
-The repository also keeps downloadable Windows app zips on each workflow run.
+The repository also keeps downloadable Windows app executables on each workflow run.
 
 1. Open the GitHub repo.
 2. Go to `Actions`.
@@ -46,7 +46,7 @@ The repository also keeps downloadable Windows app zips on each workflow run.
    - `laser-marking-machine-app-win-x64`
    - `laser-marking-machine-app-win-x86`
 
-Each artifact contains a zip with `LaserMarkingApp.exe` and the bundled .NET runtime files. Extract the zip on the marking PC and run `LaserMarkingApp.exe`.
+Each artifact contains the architecture-specific single executable.
 
 ## Default Paths
 

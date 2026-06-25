@@ -9,6 +9,7 @@ Public Class UserManagementForm
     Private ReadOnly _usersCombo As ComboBox
     Private ReadOnly _usernameBox As TextBox
     Private ReadOnly _passwordBox As TextBox
+    Private ReadOnly _confirmPasswordBox As TextBox
     Private ReadOnly _roleCombo As ComboBox
     Private ReadOnly _statusLabel As Label
 
@@ -20,7 +21,7 @@ Public Class UserManagementForm
         FormBorderStyle = FormBorderStyle.FixedDialog
         MinimizeBox = False
         MaximizeBox = False
-        ClientSize = New Size(420, 250)
+        ClientSize = New Size(420, 286)
 
         Dim existingLabel = New Label With {.Text = "Existing User", .Location = New Point(24, 24), .AutoSize = True}
         _usersCombo = New ComboBox With {.Location = New Point(136, 20), .Width = 230, .DropDownStyle = ComboBoxStyle.DropDownList}
@@ -31,24 +32,27 @@ Public Class UserManagementForm
         Dim passwordLabel = New Label With {.Text = "New Password", .Location = New Point(24, 108), .AutoSize = True}
         _passwordBox = New TextBox With {.Location = New Point(136, 104), .Width = 230, .UseSystemPasswordChar = True}
 
-        Dim roleLabel = New Label With {.Text = "Role", .Location = New Point(24, 148), .AutoSize = True}
-        _roleCombo = New ComboBox With {.Location = New Point(136, 144), .Width = 230, .DropDownStyle = ComboBoxStyle.DropDownList}
+        Dim confirmPasswordLabel = New Label With {.Text = "Confirm", .Location = New Point(24, 148), .AutoSize = True}
+        _confirmPasswordBox = New TextBox With {.Location = New Point(136, 144), .Width = 230, .UseSystemPasswordChar = True}
+
+        Dim roleLabel = New Label With {.Text = "Role", .Location = New Point(24, 188), .AutoSize = True}
+        _roleCombo = New ComboBox With {.Location = New Point(136, 184), .Width = 230, .DropDownStyle = ComboBoxStyle.DropDownList}
         _roleCombo.Items.Add(UserRole.OperatorUser)
         _roleCombo.Items.Add(UserRole.Setter)
         _roleCombo.Items.Add(UserRole.Admin)
         _roleCombo.SelectedItem = UserRole.OperatorUser
 
-        _statusLabel = New Label With {.Location = New Point(24, 190), .Size = New Size(230, 24), .ForeColor = Color.DarkGreen}
+        _statusLabel = New Label With {.Location = New Point(24, 230), .Size = New Size(230, 24), .ForeColor = Color.DarkGreen}
 
-        Dim saveButton = New Button With {.Text = "Save User", .Location = New Point(264, 186), .Size = New Size(102, 32)}
-        Dim closeButton = New Button With {.Text = "Close", .Location = New Point(292, 218), .Size = New Size(74, 24), .DialogResult = DialogResult.Cancel}
+        Dim saveButton = New Button With {.Text = "Save User", .Location = New Point(264, 226), .Size = New Size(102, 32)}
+        Dim closeButton = New Button With {.Text = "Close", .Location = New Point(292, 258), .Size = New Size(74, 24), .DialogResult = DialogResult.Cancel}
 
         AddHandler _usersCombo.SelectedIndexChanged, AddressOf UsersCombo_SelectedIndexChanged
         AddHandler saveButton.Click, AddressOf SaveButton_Click
 
         Controls.AddRange({
             existingLabel, _usersCombo, usernameLabel, _usernameBox, passwordLabel, _passwordBox,
-            roleLabel, _roleCombo, _statusLabel, saveButton, closeButton
+            confirmPasswordLabel, _confirmPasswordBox, roleLabel, _roleCombo, _statusLabel, saveButton, closeButton
         })
 
         LoadUsers()
@@ -70,16 +74,26 @@ Public Class UserManagementForm
         _usernameBox.Text = user.Username
         _roleCombo.SelectedItem = user.Role
         _passwordBox.Clear()
+        _confirmPasswordBox.Clear()
         _passwordBox.Focus()
     End Sub
 
     Private Sub SaveButton_Click(sender As Object, e As EventArgs)
         Try
+            If _passwordBox.Text <> _confirmPasswordBox.Text Then
+                _statusLabel.ForeColor = Color.DarkRed
+                _statusLabel.Text = "Passwords do not match."
+                _confirmPasswordBox.SelectAll()
+                _confirmPasswordBox.Focus()
+                Return
+            End If
+
             Dim selectedRole = CType(_roleCombo.SelectedItem, UserRole)
             _database.SaveUser(_usernameBox.Text.Trim(), _passwordBox.Text, selectedRole)
             _statusLabel.ForeColor = Color.DarkGreen
             _statusLabel.Text = "User saved."
             _passwordBox.Clear()
+            _confirmPasswordBox.Clear()
             LoadUsers()
         Catch ex As Exception
             _statusLabel.ForeColor = Color.DarkRed

@@ -44,6 +44,9 @@ Public Class MainForm
 
         Text = "Laser Marking QR App"
         StartPosition = FormStartPosition.CenterScreen
+        FormBorderStyle = FormBorderStyle.None
+        WindowState = FormWindowState.Maximized
+        TopMost = True
         MinimumSize = New Size(980, 640)
         ClientSize = New Size(980, 640)
         Font = New Font("Segoe UI", 10.0F, FontStyle.Regular, GraphicsUnit.Point)

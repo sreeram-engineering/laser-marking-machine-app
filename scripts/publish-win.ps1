@@ -17,17 +17,22 @@ New-Item -ItemType Directory -Path $dist | Out-Null
 $runtimes = @("win-x64", "win-x86")
 
 foreach ($runtime in $runtimes) {
-    $outDir = Join-Path $dist "laser-marking-machine-app-$runtime"
+    $outDir = Join-Path $dist "publish-$runtime"
     dotnet publish $project `
         -c $Configuration `
         -r $runtime `
         --self-contained true `
-        -p:PublishSingleFile=false `
+        -p:PublishSingleFile=true `
         -p:PublishTrimmed=false `
+        -p:IncludeNativeLibrariesForSelfExtract=true `
+        -p:DebugType=None `
+        -p:DebugSymbols=false `
         -o $outDir
 
-    $zipPath = Join-Path $dist "laser-marking-machine-app-$runtime.zip"
-    Compress-Archive -Path (Join-Path $outDir "*") -DestinationPath $zipPath -Force
+    $sourceExe = Join-Path $outDir "LaserMarkingApp.exe"
+    $targetExe = Join-Path $dist "LaserMarkingApp-$runtime.exe"
+    Copy-Item $sourceExe $targetExe -Force
+    Remove-Item $outDir -Recurse -Force
 }
 
-Write-Host "Published release zips in $dist"
+Write-Host "Published release executables in $dist"
