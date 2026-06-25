@@ -297,6 +297,11 @@ WHERE PartNumber = $partNumber
     Public Sub InsertMarkLog(partNumber As String, generatedSerial As Integer, heatLotNumber As String, qrData As String, username As String, result As String)
         Using connection = OpenConnection()
             Using transaction = connection.BeginTransaction()
+                Dim currentSerial = GetIntegerSetting(connection, "NextSerialNumber", 1)
+                If generatedSerial < currentSerial Then
+                    Throw New InvalidOperationException($"Serial number {generatedSerial} is lower than the current counter value {currentSerial}.")
+                End If
+
                 Using command = connection.CreateCommand()
                     command.Transaction = transaction
                     command.CommandText = "
@@ -510,7 +515,8 @@ ON CONFLICT(PartNumber) DO UPDATE SET
     Material = excluded.Material,
     Pattern = excluded.Pattern,
     ProductName = excluded.ProductName,
-    SupplierName = excluded.SupplierName;"
+    SupplierName = excluded.SupplierName,
+    TemplateFile = excluded.TemplateFile;"
                 AddPartParameters(command, seed)
                 command.Parameters.AddWithValue("$isActive", If(seed.IsActive, 1, 0))
                 command.ExecuteNonQuery()

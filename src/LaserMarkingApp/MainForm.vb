@@ -39,6 +39,7 @@ Public Class MainForm
     Private ReadOnly _serialRegexBox As TextBox
     Private ReadOnly _externalCommandBox As TextBox
     Private ReadOnly _setterStatusLabel As Label
+    Private ReadOnly _setterPreviewLabel As Label
     Private ReadOnly _baseBounds As New Dictionary(Of Control, Rectangle)()
     Private ReadOnly _baseFontSizes As New Dictionary(Of Control, Single)()
 
@@ -94,24 +95,25 @@ Public Class MainForm
         _partsCombo = New ComboBox With {.Location = New Point(120, 58), .Width = 220, .DropDownStyle = ComboBoxStyle.DropDownList}
         Dim newPartButton = New Button With {.Text = "New", .Location = New Point(350, 56), .Size = New Size(54, 30)}
         Dim loadPartButton = New Button With {.Text = "Load", .Location = New Point(410, 56), .Size = New Size(54, 30)}
+        _setterPreviewLabel = New Label With {.Location = New Point(20, 92), .Size = New Size(444, 30), .BorderStyle = BorderStyle.FixedSingle, .Font = New Font("Segoe UI", 7.0F, FontStyle.Regular, GraphicsUnit.Point)}
 
-        _partNumberBox = AddLabeledTextBox(_setterPanel, "Part Number", 104)
-        _vendorBox = AddLabeledTextBox(_setterPanel, "Item Code", 142)
-        _plantBox = AddLabeledTextBox(_setterPanel, "Material", 180)
-        _customerBox = AddLabeledTextBox(_setterPanel, "Pattern", 218)
-        _prefixBox = AddLabeledTextBox(_setterPanel, "Product", 256)
-        _qrFormatBox = AddLabeledTextBox(_setterPanel, "Supplier", 294)
-        _templateBox = AddLabeledTextBox(_setterPanel, "Template", 332)
-        _outputPathBox = AddLabeledTextBox(_setterPanel, "QR Output", 370)
-        _templateDirectoryBox = AddLabeledTextBox(_setterPanel, "Active Folder", 408)
-        _serialRegexBox = AddLabeledTextBox(_setterPanel, "Heat/Lot Rule", 446)
-        _externalCommandBox = AddLabeledTextBox(_setterPanel, "Command", 484)
-        _setterStatusLabel = New Label With {.Location = New Point(94, 522), .Size = New Size(220, 24), .ForeColor = Color.DarkGreen}
+        _partNumberBox = AddLabeledTextBox(_setterPanel, "Part Number", 130)
+        _vendorBox = AddLabeledTextBox(_setterPanel, "Item Code", 168)
+        _plantBox = AddLabeledTextBox(_setterPanel, "Material", 206)
+        _customerBox = AddLabeledTextBox(_setterPanel, "Pattern", 244)
+        _prefixBox = AddLabeledTextBox(_setterPanel, "Product", 282)
+        _qrFormatBox = AddLabeledTextBox(_setterPanel, "Supplier", 320)
+        _templateBox = AddLabeledTextBox(_setterPanel, "Template", 358)
+        _outputPathBox = AddLabeledTextBox(_setterPanel, "QR Output", 396)
+        _templateDirectoryBox = AddLabeledTextBox(_setterPanel, "Active Folder", 434)
+        _serialRegexBox = AddLabeledTextBox(_setterPanel, "Heat/Lot Rule", 472)
+        _externalCommandBox = AddLabeledTextBox(_setterPanel, "Command", 510)
+        _setterStatusLabel = New Label With {.Location = New Point(94, 548), .Size = New Size(220, 24), .ForeColor = Color.DarkGreen}
 
-        Dim browseButton = New Button With {.Text = "...", .Location = New Point(430, 330), .Size = New Size(34, 28)}
-        Dim usersButton = New Button With {.Text = "Users", .Location = New Point(20, 518), .Size = New Size(68, 30)}
-        Dim saveButton = New Button With {.Text = "Save", .Location = New Point(322, 518), .Size = New Size(68, 30)}
-        Dim setActiveButton = New Button With {.Text = "Set Active", .Location = New Point(396, 518), .Size = New Size(68, 30)}
+        Dim browseButton = New Button With {.Text = "...", .Location = New Point(430, 356), .Size = New Size(34, 28)}
+        Dim usersButton = New Button With {.Text = "Users", .Location = New Point(20, 544), .Size = New Size(68, 30)}
+        Dim saveButton = New Button With {.Text = "Save", .Location = New Point(322, 544), .Size = New Size(68, 30)}
+        Dim setActiveButton = New Button With {.Text = "Set Active", .Location = New Point(396, 544), .Size = New Size(68, 30)}
 
         AddHandler logoutButton.Click, Sub() LogoutToOperator()
         AddHandler newPartButton.Click, AddressOf NewPartButton_Click
@@ -129,7 +131,7 @@ Public Class MainForm
 
         _setterPanel.Controls.AddRange({
             setterHeader, logoutButton, partSelectLabel, _partsCombo, newPartButton, loadPartButton,
-            browseButton, usersButton, saveButton, setActiveButton, _setterStatusLabel
+            _setterPreviewLabel, browseButton, usersButton, saveButton, setActiveButton, _setterStatusLabel
         })
 
         _contentPanel.Controls.AddRange({operatorPanel, _setterPanel})
@@ -464,9 +466,9 @@ Public Class MainForm
 
     Private Sub UpdateSetterPreview()
         Try
-            _qrPreviewLabel.Text = EngravingFormatter.Build(ReadPartFromFields(), _database.PeekNextSerialNumber(), "26-4B-21", DateTime.Now)
+            _setterPreviewLabel.Text = EngravingFormatter.Build(ReadPartFromFields(), _database.PeekNextSerialNumber(), "26-4B-21", DateTime.Now)
         Catch ex As Exception
-            _qrPreviewLabel.Text = ""
+            _setterPreviewLabel.Text = ""
         End Try
     End Sub
 

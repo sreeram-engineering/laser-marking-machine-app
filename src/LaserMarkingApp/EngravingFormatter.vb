@@ -45,6 +45,10 @@ Public NotInheritable Class EngravingFormatter
             Return ""
         End If
 
-        Return value.Trim().TrimEnd("$"c).Trim()
+        Dim cleaned = value.Trim()
+        cleaned = cleaned.Replace("$", "")
+        cleaned = cleaned.Replace(vbCr, "")
+        cleaned = cleaned.Replace(vbLf, "")
+        Return cleaned.Trim()
     End Function
 End Class
