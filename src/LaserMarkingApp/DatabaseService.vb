@@ -503,15 +503,9 @@ ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value;"
     End Sub
 
     Private Shared Sub SeedDefaults(connection As SqliteConnection)
-        Using command = connection.CreateCommand()
-            command.CommandText = "SELECT COUNT(1) FROM Users;"
-            Dim userCount = Convert.ToInt32(command.ExecuteScalar())
-            If userCount = 0 Then
-                InsertUser(connection, "operator", "operator123", UserRole.OperatorUser)
-                InsertUser(connection, "setter", "setter123", UserRole.Setter)
-                InsertUser(connection, "admin", "admin123", UserRole.Admin)
-            End If
-        End Using
+        EnsureDefaultUser(connection, "operator", "operator123", UserRole.OperatorUser)
+        EnsureDefaultUser(connection, "setter", "setter123", UserRole.Setter)
+        EnsureDefaultUser(connection, "admin", "admin123", UserRole.Admin)
 
         SeedWorkbookParts(connection)
 
@@ -611,6 +605,18 @@ VALUES ($username, $passwordHash, $role);"
             command.Parameters.AddWithValue("$role", CInt(role))
             command.ExecuteNonQuery()
         End Using
+    End Sub
+
+    Private Shared Sub EnsureDefaultUser(connection As SqliteConnection, username As String, password As String, role As UserRole)
+        Using command = connection.CreateCommand()
+            command.CommandText = "SELECT COUNT(1) FROM Users WHERE Username = $username;"
+            command.Parameters.AddWithValue("$username", username)
+            If Convert.ToInt32(command.ExecuteScalar()) > 0 Then
+                Return
+            End If
+        End Using
+
+        InsertUser(connection, username, password, role)
     End Sub
 
     Private Shared Sub SaveSettingIfMissing(connection As SqliteConnection, key As String, value As String)
