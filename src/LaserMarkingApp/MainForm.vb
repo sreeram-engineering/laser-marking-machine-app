@@ -55,11 +55,11 @@ Public Class MainForm
         Dim header = New Label With {.Text = "OPERATOR", .Font = New Font(Font, FontStyle.Bold), .Location = New Point(20, 18), .AutoSize = True}
         Dim currentPartText = New Label With {.Text = "Current Part:", .Location = New Point(20, 68), .AutoSize = True}
         _partLabel = New Label With {.Location = New Point(150, 68), .Size = New Size(230, 24), .Font = New Font(Font, FontStyle.Bold)}
-        Dim vendorText = New Label With {.Text = "Vendor:", .Location = New Point(20, 104), .AutoSize = True}
+        Dim vendorText = New Label With {.Text = "Item Code:", .Location = New Point(20, 104), .AutoSize = True}
         _vendorLabel = New Label With {.Location = New Point(150, 104), .Size = New Size(230, 24), .Font = New Font(Font, FontStyle.Bold)}
-        Dim previewText = New Label With {.Text = "QR Preview:", .Location = New Point(20, 140), .AutoSize = True}
-        _qrPreviewLabel = New Label With {.Location = New Point(20, 168), .Size = New Size(360, 44), .BorderStyle = BorderStyle.FixedSingle}
-        Dim serialLabel = New Label With {.Text = "Serial Number", .Location = New Point(20, 246), .AutoSize = True}
+        Dim previewText = New Label With {.Text = "Engraving Preview:", .Location = New Point(20, 140), .AutoSize = True}
+        _qrPreviewLabel = New Label With {.Location = New Point(20, 168), .Size = New Size(360, 62), .BorderStyle = BorderStyle.FixedSingle}
+        Dim serialLabel = New Label With {.Text = "Heat / Lot Number", .Location = New Point(20, 246), .AutoSize = True}
         _serialBox = New TextBox With {.Location = New Point(20, 276), .Width = 260, .Font = New Font("Segoe UI", 18.0F, FontStyle.Regular, GraphicsUnit.Point)}
         Dim markButton = New Button With {.Text = "MARK", .Location = New Point(292, 274), .Size = New Size(88, 44)}
         _statusLabel = New Label With {.Location = New Point(20, 350), .Size = New Size(360, 80), .ForeColor = Color.DarkGreen}
@@ -69,6 +69,7 @@ Public Class MainForm
         AddHandler markButton.Click, AddressOf MarkButton_Click
         AddHandler setterLoginButton.Click, AddressOf SetterLoginButton_Click
         AddHandler _serialBox.KeyDown, AddressOf SerialBox_KeyDown
+        AddHandler _serialBox.TextChanged, AddressOf OperatorInput_TextChanged
 
         operatorPanel.Controls.AddRange({
             header, currentPartText, _partLabel, vendorText, _vendorLabel, previewText, _qrPreviewLabel,
@@ -84,11 +85,11 @@ Public Class MainForm
         Dim loadPartButton = New Button With {.Text = "Load", .Location = New Point(410, 56), .Size = New Size(54, 30)}
 
         _partNumberBox = AddLabeledTextBox(_setterPanel, "Part Number", 104)
-        _vendorBox = AddLabeledTextBox(_setterPanel, "Vendor", 142)
-        _plantBox = AddLabeledTextBox(_setterPanel, "Plant", 180)
-        _customerBox = AddLabeledTextBox(_setterPanel, "Customer", 218)
-        _prefixBox = AddLabeledTextBox(_setterPanel, "QR Prefix", 256)
-        _qrFormatBox = AddLabeledTextBox(_setterPanel, "QR Format", 294)
+        _vendorBox = AddLabeledTextBox(_setterPanel, "Item Code", 142)
+        _plantBox = AddLabeledTextBox(_setterPanel, "Material", 180)
+        _customerBox = AddLabeledTextBox(_setterPanel, "Pattern", 218)
+        _prefixBox = AddLabeledTextBox(_setterPanel, "Product", 256)
+        _qrFormatBox = AddLabeledTextBox(_setterPanel, "Supplier", 294)
         _templateBox = AddLabeledTextBox(_setterPanel, "Template", 332)
         _outputPathBox = AddLabeledTextBox(_setterPanel, "QR Output", 370)
         _templateDirectoryBox = AddLabeledTextBox(_setterPanel, "Active Folder", 408)
@@ -110,6 +111,9 @@ Public Class MainForm
         AddHandler setActiveButton.Click, AddressOf SetActiveButton_Click
         AddHandler _qrFormatBox.TextChanged, AddressOf SetterField_TextChanged
         AddHandler _vendorBox.TextChanged, AddressOf SetterField_TextChanged
+        AddHandler _plantBox.TextChanged, AddressOf SetterField_TextChanged
+        AddHandler _customerBox.TextChanged, AddressOf SetterField_TextChanged
+        AddHandler _prefixBox.TextChanged, AddressOf SetterField_TextChanged
         AddHandler _partNumberBox.TextChanged, AddressOf SetterField_TextChanged
 
         _setterPanel.Controls.AddRange({
@@ -155,12 +159,34 @@ Public Class MainForm
             _serialBox.Enabled = False
         Else
             _partLabel.Text = _activePart.PartNumber
-            _vendorLabel.Text = _activePart.VendorCode
-            _qrPreviewLabel.Text = QrFormatter.Build(_activePart, "123456")
+            _vendorLabel.Text = _activePart.CustomerItemCode
+            UpdateOperatorPreview()
             _serialBox.Enabled = True
         End If
 
         _loggedInLabel.Text = $"Logged in as {_currentUser.Username}"
+    End Sub
+
+    Private Function CurrentHeatLotPreview() As String
+        Dim heatLot = _serialBox.Text.Trim()
+        If String.IsNullOrWhiteSpace(heatLot) Then
+            Return "26-4B-21"
+        End If
+
+        Return heatLot
+    End Function
+
+    Private Sub UpdateOperatorPreview()
+        If _activePart Is Nothing Then
+            _qrPreviewLabel.Text = ""
+            Return
+        End If
+
+        Try
+            _qrPreviewLabel.Text = EngravingFormatter.Build(_activePart, _database.PeekNextSerialNumber(), CurrentHeatLotPreview(), DateTime.Now)
+        Catch ex As Exception
+            _qrPreviewLabel.Text = ""
+        End Try
     End Sub
 
     Private Sub RefreshSetterParts()
@@ -186,11 +212,11 @@ Public Class MainForm
     Private Sub LoadPartIntoFields(part As PartRecord)
         _partNumberBox.Tag = part.Id
         _partNumberBox.Text = part.PartNumber
-        _vendorBox.Text = part.VendorCode
-        _plantBox.Text = part.PlantCode
-        _customerBox.Text = part.CustomerCode
-        _prefixBox.Text = part.QrPrefix
-        _qrFormatBox.Text = part.QrFormat
+        _vendorBox.Text = part.CustomerItemCode
+        _plantBox.Text = part.Material
+        _customerBox.Text = part.Pattern
+        _prefixBox.Text = part.ProductName
+        _qrFormatBox.Text = part.SupplierName
         _templateBox.Text = part.TemplateFile
         UpdateSetterPreview()
     End Sub
@@ -204,11 +230,14 @@ Public Class MainForm
         Return New PartRecord With {
             .Id = partId,
             .PartNumber = _partNumberBox.Text.Trim(),
+            .CustomerItemCode = _vendorBox.Text.Trim(),
             .VendorCode = _vendorBox.Text.Trim(),
-            .PlantCode = _plantBox.Text.Trim(),
-            .CustomerCode = _customerBox.Text.Trim(),
-            .QrPrefix = _prefixBox.Text.Trim(),
-            .QrFormat = _qrFormatBox.Text.Trim(),
+            .CustomerCode = _vendorBox.Text.Trim(),
+            .Material = _plantBox.Text.Trim(),
+            .Pattern = _customerBox.Text.Trim(),
+            .ProductName = _prefixBox.Text.Trim(),
+            .SupplierName = _qrFormatBox.Text.Trim(),
+            .QrFormat = "{CustomerItemCode}${PartNumber}${DatePrefixSerial}${MarkDate}${MonthLabel}${HeatLot}${Material}${Pattern}${ProductName}${SupplierName}$",
             .TemplateFile = _templateBox.Text.Trim()
         }
     End Function
@@ -230,22 +259,16 @@ Public Class MainForm
             Return
         End If
 
-        Dim serial = _serialBox.Text.Trim()
-        If Not Regex.IsMatch(serial, _settings.SerialRegex) Then
-            ShowOperatorError($"Invalid serial number. Expected format: {_settings.SerialRegex}")
+        Dim heatLotNumber = _serialBox.Text.Trim()
+        If String.IsNullOrWhiteSpace(heatLotNumber) Then
+            ShowOperatorError("Heat / lot number is required.")
             _serialBox.SelectAll()
             _serialBox.Focus()
             Return
         End If
 
-        If _database.SerialExists(_activePart.PartNumber, serial) Then
-            ShowOperatorError($"Duplicate serial blocked: {_activePart.PartNumber} / {serial}")
-            _serialBox.SelectAll()
-            _serialBox.Focus()
-            Return
-        End If
-
-        Dim qrData = QrFormatter.Build(_activePart, serial)
+        Dim generatedSerial = _database.PeekNextSerialNumber()
+        Dim qrData = EngravingFormatter.Build(_activePart, generatedSerial, heatLotNumber, DateTime.Now)
 
         Try
             WriteQrData(_settings.QrOutputPath, qrData)
@@ -254,7 +277,7 @@ Public Class MainForm
                 result = RunExternalCommand(_settings.ExternalCommand)
             End If
 
-            _database.InsertMarkLog(_activePart.PartNumber, serial, qrData, _currentUser.Username, result)
+            _database.InsertMarkLog(_activePart.PartNumber, generatedSerial, heatLotNumber, qrData, _currentUser.Username, result)
             _statusLabel.ForeColor = Color.DarkGreen
             _statusLabel.Text = $"Ready for EZCAD: {qrData}"
             _serialBox.Clear()
@@ -269,6 +292,10 @@ Public Class MainForm
             MarkButton_Click(sender, EventArgs.Empty)
             e.SuppressKeyPress = True
         End If
+    End Sub
+
+    Private Sub OperatorInput_TextChanged(sender As Object, e As EventArgs)
+        UpdateOperatorPreview()
     End Sub
 
     Private Sub SetterLoginButton_Click(sender As Object, e As EventArgs)
@@ -288,11 +315,11 @@ Public Class MainForm
     Private Sub NewPartButton_Click(sender As Object, e As EventArgs)
         _partNumberBox.Tag = 0
         _partNumberBox.Text = ""
-        _vendorBox.Text = ""
-        _plantBox.Text = ""
-        _customerBox.Text = ""
-        _prefixBox.Text = ""
-        _qrFormatBox.Text = "{VendorCode}|{PartNumber}|{Serial}"
+        _vendorBox.Text = "7201097"
+        _plantBox.Text = "FG260"
+        _customerBox.Text = "#"
+        _prefixBox.Text = "FLYWHEEL"
+        _qrFormatBox.Text = "SREERAMENGG"
         _templateBox.Text = ""
         UpdateSetterPreview()
         _partNumberBox.Focus()
@@ -370,7 +397,7 @@ Public Class MainForm
 
     Private Sub UpdateSetterPreview()
         Try
-            _qrPreviewLabel.Text = QrFormatter.Build(ReadPartFromFields(), "123456")
+            _qrPreviewLabel.Text = EngravingFormatter.Build(ReadPartFromFields(), _database.PeekNextSerialNumber(), "26-4B-21", DateTime.Now)
         Catch ex As Exception
             _qrPreviewLabel.Text = ""
         End Try
@@ -422,12 +449,24 @@ Public Class MainForm
             Throw New InvalidOperationException("Part number is required.")
         End If
 
-        If String.IsNullOrWhiteSpace(part.VendorCode) Then
-            Throw New InvalidOperationException("Vendor code is required.")
+        If String.IsNullOrWhiteSpace(part.CustomerItemCode) Then
+            Throw New InvalidOperationException("Item code is required.")
         End If
 
-        If String.IsNullOrWhiteSpace(part.QrFormat) OrElse Not part.QrFormat.Contains("{Serial}") Then
-            Throw New InvalidOperationException("QR format must include {Serial}.")
+        If String.IsNullOrWhiteSpace(part.Material) Then
+            Throw New InvalidOperationException("Material is required.")
+        End If
+
+        If String.IsNullOrWhiteSpace(part.Pattern) Then
+            Throw New InvalidOperationException("Pattern is required.")
+        End If
+
+        If String.IsNullOrWhiteSpace(part.ProductName) Then
+            Throw New InvalidOperationException("Product is required.")
+        End If
+
+        If String.IsNullOrWhiteSpace(part.SupplierName) Then
+            Throw New InvalidOperationException("Supplier is required.")
         End If
     End Sub
 

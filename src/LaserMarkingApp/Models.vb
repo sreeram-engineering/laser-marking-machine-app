@@ -9,11 +9,16 @@ End Enum
 Public Class PartRecord
     Public Property Id As Integer
     Public Property PartNumber As String = ""
+    Public Property CustomerItemCode As String = "7201097"
     Public Property VendorCode As String = ""
     Public Property PlantCode As String = ""
     Public Property CustomerCode As String = ""
     Public Property QrPrefix As String = ""
     Public Property QrFormat As String = "{VendorCode}|{PartNumber}|{Serial}"
+    Public Property Material As String = "FG260"
+    Public Property Pattern As String = "#"
+    Public Property ProductName As String = "FLYWHEEL"
+    Public Property SupplierName As String = "SREERAMENGG"
     Public Property TemplateFile As String = ""
     Public Property IsActive As Boolean
 
