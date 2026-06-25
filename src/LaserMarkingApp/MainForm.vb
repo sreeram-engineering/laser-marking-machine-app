@@ -100,7 +100,7 @@ Public Class MainForm
             .BorderStyle = BorderStyle.FixedSingle,
             .Enabled = False,
             .AutoScroll = True,
-            .AutoScrollMinSize = New Size(0, 610)
+            .AutoScrollMinSize = New Size(0, 650)
         }
         Dim setterHeader = New Label With {.Text = "SETTER SETTINGS", .Font = New Font(Font, FontStyle.Bold), .Location = New Point(20, 18), .AutoSize = True}
         Dim logoutButton = New Button With {.Text = "Logout", .Location = New Point(382, 14), .Size = New Size(82, 32)}
@@ -121,7 +121,7 @@ Public Class MainForm
         _templateDirectoryBox = AddLabeledTextBox(_setterPanel, "Active Template Folder", 434)
         _serialRegexBox = New TextBox With {.Visible = False}
         _externalCommandBox = AddLabeledTextBox(_setterPanel, "Command", 472)
-        _setterStatusLabel = New Label With {.Location = New Point(94, 548), .Size = New Size(220, 24), .ForeColor = Color.DarkGreen}
+        _setterStatusLabel = New Label With {.Location = New Point(20, 584), .Size = New Size(444, 42), .ForeColor = Color.DarkGreen}
 
         _browseButton = New Button With {.Text = "...", .Location = New Point(430, 356), .Size = New Size(34, 28)}
         _usersButton = New Button With {.Text = "Users", .Location = New Point(20, 544), .Size = New Size(68, 30)}
