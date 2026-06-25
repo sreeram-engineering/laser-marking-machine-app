@@ -204,6 +204,50 @@ SELECT last_insert_rowid();"
         End Using
     End Sub
 
+    Public Sub DeletePart(partId As Integer)
+        Using connection = OpenConnection()
+            Using transaction = connection.BeginTransaction()
+                Dim wasActive = False
+                Using activeCommand = connection.CreateCommand()
+                    activeCommand.Transaction = transaction
+                    activeCommand.CommandText = "SELECT IsActive FROM Parts WHERE Id = $id LIMIT 1;"
+                    activeCommand.Parameters.AddWithValue("$id", partId)
+                    Dim activeValue = activeCommand.ExecuteScalar()
+                    If activeValue Is Nothing Then
+                        Throw New InvalidOperationException("Part was not found.")
+                    End If
+
+                    wasActive = Convert.ToInt32(activeValue) = 1
+                End Using
+
+                Using deleteCommand = connection.CreateCommand()
+                    deleteCommand.Transaction = transaction
+                    deleteCommand.CommandText = "DELETE FROM Parts WHERE Id = $id;"
+                    deleteCommand.Parameters.AddWithValue("$id", partId)
+                    deleteCommand.ExecuteNonQuery()
+                End Using
+
+                If wasActive Then
+                    Using setActiveCommand = connection.CreateCommand()
+                        setActiveCommand.Transaction = transaction
+                        setActiveCommand.CommandText = "
+UPDATE Parts
+SET IsActive = 1
+WHERE Id = (
+    SELECT Id
+    FROM Parts
+    ORDER BY PartNumber
+    LIMIT 1
+);"
+                        setActiveCommand.ExecuteNonQuery()
+                    End Using
+                End If
+
+                transaction.Commit()
+            End Using
+        End Using
+    End Sub
+
     Public Function FindUser(username As String) As UserRecord
         Using connection = OpenConnection()
             Using command = connection.CreateCommand()
@@ -552,11 +596,7 @@ UPDATE Parts SET IsActive = 1 WHERE PartNumber = 'B3F00401';"
         Using deleteCommand = connection.CreateCommand()
             deleteCommand.CommandText = "
 DELETE FROM Parts
-WHERE PartNumber = 'ABC123'
-  AND VendorCode = 'V001'
-  AND CustomerCode = 'C123'
-  AND QRFormat = '{VendorCode}|{PartNumber}|{Serial}'
-  AND NOT EXISTS (SELECT 1 FROM MarkLog WHERE PartNumber = 'ABC123');"
+WHERE PartNumber = 'ABC123';"
             deleteCommand.ExecuteNonQuery()
         End Using
     End Sub

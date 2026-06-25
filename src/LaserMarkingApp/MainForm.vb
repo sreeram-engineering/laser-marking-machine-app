@@ -40,6 +40,12 @@ Public Class MainForm
     Private ReadOnly _externalCommandBox As TextBox
     Private ReadOnly _setterStatusLabel As Label
     Private ReadOnly _setterPreviewLabel As Label
+    Private ReadOnly _newPartButton As Button
+    Private ReadOnly _deletePartButton As Button
+    Private ReadOnly _browseButton As Button
+    Private ReadOnly _saveButton As Button
+    Private ReadOnly _setActiveButton As Button
+    Private ReadOnly _usersButton As Button
     Private ReadOnly _baseBounds As New Dictionary(Of Control, Rectangle)()
     Private ReadOnly _baseFontSizes As New Dictionary(Of Control, Single)()
 
@@ -100,7 +106,7 @@ Public Class MainForm
         Dim logoutButton = New Button With {.Text = "Logout", .Location = New Point(382, 14), .Size = New Size(82, 32)}
         Dim partSelectLabel = New Label With {.Text = "Part", .Location = New Point(20, 62), .AutoSize = True}
         _partsCombo = New ComboBox With {.Location = New Point(120, 58), .Width = 220, .DropDownStyle = ComboBoxStyle.DropDownList}
-        Dim newPartButton = New Button With {.Text = "New", .Location = New Point(350, 56), .Size = New Size(54, 30)}
+        _newPartButton = New Button With {.Text = "New", .Location = New Point(350, 56), .Size = New Size(54, 30)}
         Dim loadPartButton = New Button With {.Text = "Load", .Location = New Point(410, 56), .Size = New Size(54, 30)}
         _setterPreviewLabel = New Label With {.Location = New Point(20, 92), .Size = New Size(444, 30), .BorderStyle = BorderStyle.FixedSingle, .Font = New Font("Segoe UI", 7.0F, FontStyle.Regular, GraphicsUnit.Point)}
 
@@ -117,18 +123,20 @@ Public Class MainForm
         _externalCommandBox = AddLabeledTextBox(_setterPanel, "Command", 472)
         _setterStatusLabel = New Label With {.Location = New Point(94, 548), .Size = New Size(220, 24), .ForeColor = Color.DarkGreen}
 
-        Dim browseButton = New Button With {.Text = "...", .Location = New Point(430, 356), .Size = New Size(34, 28)}
-        Dim usersButton = New Button With {.Text = "Users", .Location = New Point(20, 544), .Size = New Size(68, 30)}
-        Dim saveButton = New Button With {.Text = "Save", .Location = New Point(322, 544), .Size = New Size(68, 30)}
-        Dim setActiveButton = New Button With {.Text = "Set Active", .Location = New Point(396, 544), .Size = New Size(68, 30)}
+        _browseButton = New Button With {.Text = "...", .Location = New Point(430, 356), .Size = New Size(34, 28)}
+        _usersButton = New Button With {.Text = "Users", .Location = New Point(20, 544), .Size = New Size(68, 30)}
+        _deletePartButton = New Button With {.Text = "Delete", .Location = New Point(96, 544), .Size = New Size(68, 30)}
+        _saveButton = New Button With {.Text = "Save", .Location = New Point(282, 544), .Size = New Size(58, 30)}
+        _setActiveButton = New Button With {.Text = "Set Active", .Location = New Point(348, 544), .Size = New Size(84, 30)}
 
         AddHandler logoutButton.Click, Sub() LogoutToOperator()
-        AddHandler newPartButton.Click, AddressOf NewPartButton_Click
+        AddHandler _newPartButton.Click, AddressOf NewPartButton_Click
         AddHandler loadPartButton.Click, AddressOf LoadPartButton_Click
-        AddHandler browseButton.Click, AddressOf BrowseButton_Click
-        AddHandler usersButton.Click, AddressOf UsersButton_Click
-        AddHandler saveButton.Click, AddressOf SaveButton_Click
-        AddHandler setActiveButton.Click, AddressOf SetActiveButton_Click
+        AddHandler _browseButton.Click, AddressOf BrowseButton_Click
+        AddHandler _usersButton.Click, AddressOf UsersButton_Click
+        AddHandler _deletePartButton.Click, AddressOf DeletePartButton_Click
+        AddHandler _saveButton.Click, AddressOf SaveButton_Click
+        AddHandler _setActiveButton.Click, AddressOf SetActiveButton_Click
         AddHandler _qrFormatBox.TextChanged, AddressOf SetterField_TextChanged
         AddHandler _vendorBox.TextChanged, AddressOf SetterField_TextChanged
         AddHandler _plantBox.TextChanged, AddressOf SetterField_TextChanged
@@ -137,8 +145,8 @@ Public Class MainForm
         AddHandler _partNumberBox.TextChanged, AddressOf SetterField_TextChanged
 
         _setterPanel.Controls.AddRange({
-            setterHeader, logoutButton, partSelectLabel, _partsCombo, newPartButton, loadPartButton,
-            _setterPreviewLabel, browseButton, usersButton, saveButton, setActiveButton, _setterStatusLabel
+            setterHeader, logoutButton, partSelectLabel, _partsCombo, _newPartButton, loadPartButton,
+            _setterPreviewLabel, _browseButton, _usersButton, _deletePartButton, _saveButton, _setActiveButton, _setterStatusLabel
         })
 
         _contentPanel.Controls.AddRange({operatorPanel, _setterPanel})
@@ -383,12 +391,55 @@ Public Class MainForm
             _currentUser = login.AuthenticatedUser
             _setterPanel.Enabled = True
             _lastActivity = DateTime.Now
+            ApplySetterPermissions()
             RefreshOperatorView()
             _setterStatusLabel.Text = $"Setter access: {_currentUser.Username}"
         End Using
     End Sub
 
+    Private Sub ApplySetterPermissions()
+        Dim isAdmin = _currentUser.Role = UserRole.Admin
+        For Each box In GetAdminOnlyTextBoxes()
+            box.ReadOnly = Not isAdmin
+        Next
+
+        _newPartButton.Enabled = isAdmin
+        _deletePartButton.Enabled = isAdmin
+        _browseButton.Enabled = isAdmin
+        _saveButton.Enabled = isAdmin
+        _usersButton.Enabled = isAdmin
+    End Sub
+
+    Private Function GetAdminOnlyTextBoxes() As IEnumerable(Of TextBox)
+        Return {
+            _partNumberBox,
+            _vendorBox,
+            _plantBox,
+            _customerBox,
+            _prefixBox,
+            _qrFormatBox,
+            _templateBox,
+            _outputPathBox,
+            _templateDirectoryBox,
+            _externalCommandBox
+        }
+    End Function
+
+    Private Function RequireAdminAction() As Boolean
+        If _currentUser.Role = UserRole.Admin Then
+            Return True
+        End If
+
+        _setterStatusLabel.ForeColor = Color.DarkRed
+        _setterStatusLabel.Text = "Admin role required."
+        Return False
+    End Function
+
     Private Sub NewPartButton_Click(sender As Object, e As EventArgs)
+        If Not RequireAdminAction() Then
+            Return
+        End If
+
         _partNumberBox.Tag = 0
         _partNumberBox.Text = ""
         _vendorBox.Text = "7201097"
@@ -410,6 +461,10 @@ Public Class MainForm
     End Sub
 
     Private Sub BrowseButton_Click(sender As Object, e As EventArgs)
+        If Not RequireAdminAction() Then
+            Return
+        End If
+
         Using dialog = New OpenFileDialog()
             dialog.Title = "Select EZCAD template"
             dialog.Filter = "EZCAD templates (*.ezd)|*.ezd|All files (*.*)|*.*"
@@ -420,9 +475,7 @@ Public Class MainForm
     End Sub
 
     Private Sub UsersButton_Click(sender As Object, e As EventArgs)
-        If _currentUser.Role <> UserRole.Admin Then
-            _setterStatusLabel.ForeColor = Color.DarkRed
-            _setterStatusLabel.Text = "Admin role required."
+        If Not RequireAdminAction() Then
             Return
         End If
 
@@ -432,6 +485,10 @@ Public Class MainForm
     End Sub
 
     Private Sub SaveButton_Click(sender As Object, e As EventArgs)
+        If Not RequireAdminAction() Then
+            Return
+        End If
+
         Try
             Dim part = ReadPartFromFields()
             ValidatePart(part)
@@ -448,16 +505,56 @@ Public Class MainForm
         End Try
     End Sub
 
+    Private Sub DeletePartButton_Click(sender As Object, e As EventArgs)
+        If Not RequireAdminAction() Then
+            Return
+        End If
+
+        Dim part = ReadPartFromFields()
+        If part.Id <= 0 Then
+            _setterStatusLabel.ForeColor = Color.DarkRed
+            _setterStatusLabel.Text = "Load a saved part before deleting."
+            Return
+        End If
+
+        If MessageBox.Show(Me, $"Delete part {part.PartNumber}?", "Confirm Delete", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) <> DialogResult.Yes Then
+            Return
+        End If
+
+        Try
+            _database.DeletePart(part.Id)
+            RefreshAll()
+            ApplySetterPermissions()
+            _setterStatusLabel.ForeColor = Color.DarkGreen
+            _setterStatusLabel.Text = $"Deleted {part.PartNumber}."
+        Catch ex As Exception
+            _setterStatusLabel.ForeColor = Color.DarkRed
+            _setterStatusLabel.Text = ex.Message
+        End Try
+    End Sub
+
     Private Sub SetActiveButton_Click(sender As Object, e As EventArgs)
         Try
-            Dim part = ReadPartFromFields()
-            ValidatePart(part)
-            Dim savedId = _database.SavePart(part)
+            Dim part = If(_currentUser.Role = UserRole.Admin, ReadPartFromFields(), TryCast(_partsCombo.SelectedItem, PartRecord))
+            If part Is Nothing OrElse part.Id <= 0 Then
+                Throw New InvalidOperationException("Select a saved part before setting active.")
+            End If
+
+            Dim savedId = part.Id
+            If _currentUser.Role = UserRole.Admin Then
+                ValidatePart(part)
+                savedId = _database.SavePart(part)
+            End If
+
             CopyTemplateToActiveFolder(part.TemplateFile, _templateDirectoryBox.Text.Trim())
             _database.SetActivePart(savedId)
-            _settings = ReadSettingsFromFields()
-            _database.SaveSettings(_settings)
+            If _currentUser.Role = UserRole.Admin Then
+                _settings = ReadSettingsFromFields()
+                _database.SaveSettings(_settings)
+            End If
+
             RefreshAll()
+            ApplySetterPermissions()
             _setterStatusLabel.ForeColor = Color.DarkGreen
             _setterStatusLabel.Text = $"Active part: {part.PartNumber}"
             _serialBox.Focus()
@@ -493,6 +590,7 @@ Public Class MainForm
     Private Sub LogoutToOperator()
         _currentUser = New UserRecord With {.Username = "operator", .Role = UserRole.OperatorUser}
         _setterPanel.Enabled = False
+        ApplySetterPermissions()
         RefreshOperatorView()
         _serialBox.Focus()
     End Sub
