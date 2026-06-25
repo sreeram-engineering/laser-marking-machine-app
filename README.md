@@ -78,11 +78,21 @@ The operator cannot edit part, item code, generated serial, date fields, QR form
 ## Setter Flow
 
 1. Click `Setter Login`.
-2. Log in with a Setter or Admin account.
-3. Select or create a part.
-4. Set vendor, plant, customer, QR format, and template path.
-5. Press `Save` to store the part.
-6. Press `Set Active` to activate the part and copy its `.ezd` template into the active template folder.
+2. Log in with a Setter account.
+3. Select the part that should run.
+4. Press `Load` to review the selected part details.
+5. Press `Set Active` to activate the part and copy its `.ezd` template into the active template folder.
+
+Setters cannot create, edit, or delete part master data.
+
+## Admin Part Management
+
+Admin users can create, update, and delete part master records from the setter screen.
+
+1. Click `Setter Login`.
+2. Log in with an Admin account.
+3. Use `New`, `Save`, or `Delete` to manage part records.
+4. Use `Set Active` to activate the required production part.
 
 Setter access automatically logs out after 2 minutes of inactivity.
 
