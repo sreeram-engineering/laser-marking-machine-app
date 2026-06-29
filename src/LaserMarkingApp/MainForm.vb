@@ -59,14 +59,15 @@ Public Class MainForm
         _database = database
         _settings = _database.LoadSettings()
         _activePart = _database.GetActivePart()
+        _currentUser = LoadOperatorUser()
 
         Text = "Laser Marking QR App"
-        StartPosition = FormStartPosition.CenterScreen
-        FormBorderStyle = FormBorderStyle.Sizable
-        WindowState = FormWindowState.Normal
-        TopMost = False
-        MinimumSize = New Size(980, 640)
-        ClientSize = New Size(DesignWidth, DesignHeight)
+        StartPosition = FormStartPosition.Manual
+        FormBorderStyle = FormBorderStyle.None
+        TopMost = True
+        KeyPreview = True
+        MinimumSize = Size.Empty
+        ApplyKioskBounds()
         Font = New Font("Segoe UI", 10.0F, FontStyle.Regular, GraphicsUnit.Point)
 
         _contentPanel = New Panel With {.Location = New Point(0, 0), .Size = New Size(DesignWidth, DesignHeight)}
@@ -157,6 +158,7 @@ Public Class MainForm
 
         AddHandler MouseMove, AddressOf AnyActivity
         AddHandler KeyDown, AddressOf AnyKeyActivity
+        AddHandler KeyDown, AddressOf MainForm_KeyDown
         AddHandler FormClosing, AddressOf MainForm_FormClosing
         AddHandler Resize, AddressOf MainForm_Resize
         WireActivityHandlers(Me)
@@ -169,6 +171,26 @@ Public Class MainForm
 
         RefreshAll()
         _serialBox.Focus()
+    End Sub
+
+    Protected Overrides Sub OnShown(e As EventArgs)
+        MyBase.OnShown(e)
+        ApplyKioskBounds()
+        BringToFront()
+        Activate()
+        _serialBox.Focus()
+    End Sub
+
+    Private Sub ApplyKioskBounds()
+        Dim primaryScreen = Screen.PrimaryScreen
+        If primaryScreen Is Nothing Then
+            WindowState = FormWindowState.Maximized
+            Return
+        End If
+
+        WindowState = FormWindowState.Normal
+        Bounds = primaryScreen.Bounds
+        WindowState = FormWindowState.Maximized
     End Sub
 
     Private Sub CaptureBaseLayout(parent As Control)
@@ -393,7 +415,7 @@ Public Class MainForm
                 result = RunExternalCommand(_settings.ExternalCommand)
             End If
 
-            _database.InsertMarkLog(_activePart.PartNumber, generatedSerial, heatLotNumber, qrData, _currentUser.Username, result)
+            _database.InsertMarkLog(_activePart.PartNumber, generatedSerial, heatLotNumber, qrData, _currentUser, result)
             _statusLabel.ForeColor = Color.DarkGreen
             _statusLabel.Text = $"Ready for EZCAD: {qrData}"
             _serialBox.Clear()
@@ -520,7 +542,7 @@ Public Class MainForm
             Return
         End If
 
-        Using form = New UserManagementForm(_database)
+        Using form = New UserManagementForm(_database, _currentUser)
             form.ShowDialog(Me)
         End Using
     End Sub
@@ -641,12 +663,21 @@ Public Class MainForm
     End Sub
 
     Private Sub LogoutToOperator()
-        _currentUser = New UserRecord With {.Username = "operator", .Role = UserRole.OperatorUser}
+        _currentUser = LoadOperatorUser()
         _setterPanel.Enabled = False
         ApplySetterPermissions()
         RefreshOperatorView()
         _serialBox.Focus()
     End Sub
+
+    Private Function LoadOperatorUser() As UserRecord
+        Dim operatorUser = _database.FindUser("operator")
+        If operatorUser IsNot Nothing Then
+            Return operatorUser
+        End If
+
+        Return New UserRecord With {.Username = "operator", .Role = UserRole.OperatorUser}
+    End Function
 
     Private Sub AnyActivity(sender As Object, e As MouseEventArgs)
         _lastActivity = DateTime.Now
@@ -654,6 +685,14 @@ Public Class MainForm
 
     Private Sub AnyKeyActivity(sender As Object, e As KeyEventArgs)
         _lastActivity = DateTime.Now
+    End Sub
+
+    Private Sub MainForm_KeyDown(sender As Object, e As KeyEventArgs)
+        If e.Alt AndAlso e.KeyCode = Keys.F4 Then
+            e.Handled = True
+            e.SuppressKeyPress = True
+            Close()
+        End If
     End Sub
 
     Private Sub WireActivityHandlers(parent As Control)

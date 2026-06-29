@@ -30,6 +30,7 @@ Public Class ProductionLogsForm
         MaximizeBox = False
         MinimizeBox = False
         ShowInTaskbar = False
+        TopMost = True
         Size = New Drawing.Size(980, 560)
 
         _tabs = New TabControl With {
@@ -69,6 +70,12 @@ Public Class ProductionLogsForm
 
         LoadPartSelectionGrid()
         LoadMarkLogGrid()
+    End Sub
+
+    Protected Overrides Sub OnShown(e As EventArgs)
+        MyBase.OnShown(e)
+        BringToFront()
+        Activate()
     End Sub
 
     Private Shared Function CreateGrid() As DataGridView
