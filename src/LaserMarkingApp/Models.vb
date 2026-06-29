@@ -36,6 +36,7 @@ Public Class UserRecord
     Public Property Username As String = ""
     Public Property PasswordHash As String = ""
     Public Property Role As UserRole = UserRole.OperatorUser
+    Public Property IsDeleted As Boolean
 
     Public Overrides Function ToString() As String
         Return $"{Username} ({Role})"
@@ -53,6 +54,7 @@ End Class
 Public Class PartSelectionLogRecord
     Public Property Id As Integer
     Public Property PartId As Integer
+    Public Property SelectedByUserId As Integer?
     Public Property PartNumber As String = ""
     Public Property SelectedBy As String = ""
     Public Property SelectedRole As UserRole = UserRole.Setter
@@ -61,6 +63,7 @@ End Class
 
 Public Class MarkLogRecord
     Public Property Id As Integer
+    Public Property UserId As Integer?
     Public Property PartNumber As String = ""
     Public Property GeneratedSerial As Integer?
     Public Property HeatLotNumber As String = ""
