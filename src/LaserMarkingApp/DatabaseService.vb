@@ -480,11 +480,22 @@ LIMIT $limit;"
 
                 Using reader = command.ExecuteReader()
                     While reader.Read()
+                        Dim generatedSerial = reader.GetInt32(2)
+                        Dim heatLotNumber = reader.GetString(3)
+
+                        ' Legacy rows: default values indicate missing data
+                        If generatedSerial = 0 Then
+                            generatedSerial = 0 ' Keep as 0 to indicate legacy/unknown
+                        End If
+                        If String.IsNullOrEmpty(heatLotNumber) Then
+                            heatLotNumber = "" ' Keep empty to indicate legacy/unknown
+                        End If
+
                         logs.Add(New MarkLogRecord With {
                             .Id = reader.GetInt32(0),
                             .PartNumber = reader.GetString(1),
-                            .GeneratedSerial = reader.GetInt32(2),
-                            .HeatLotNumber = reader.GetString(3),
+                            .GeneratedSerial = generatedSerial,
+                            .HeatLotNumber = heatLotNumber,
                             .EngravingData = reader.GetString(4),
                             .TimestampUtc = reader.GetString(5),
                             .Username = reader.GetString(6),

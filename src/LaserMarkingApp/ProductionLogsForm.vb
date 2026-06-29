@@ -131,8 +131,13 @@ Public Class ProductionLogsForm
                 Return
             End If
 
-            Dim csv = If(_tabs.SelectedIndex = 0, BuildPartSelectionCsv(), BuildMarkLogCsv())
-            File.WriteAllText(dialog.FileName, csv, New UTF8Encoding(True))
+            Try
+                Dim csv = If(_tabs.SelectedIndex = 0, BuildPartSelectionCsv(), BuildMarkLogCsv())
+                File.WriteAllText(dialog.FileName, csv, New UTF8Encoding(True))
+                MessageBox.Show(Me, "Export completed successfully.", "Export CSV", MessageBoxButtons.OK, MessageBoxIcon.Information)
+            Catch ex As Exception
+                MessageBox.Show(Me, $"Failed to export CSV: {ex.Message}", "Export Error", MessageBoxButtons.OK, MessageBoxIcon.Error)
+            End Try
         End Using
     End Sub
 
@@ -187,6 +192,15 @@ Public Class ProductionLogsForm
 
     Private Shared Function QuoteCsv(value As String) As String
         Dim safeValue = If(value, "")
+
+        ' Neutralize formula injection by prefixing dangerous leading characters
+        If safeValue.Length > 0 Then
+            Dim firstChar = safeValue(0)
+            If firstChar = "="c OrElse firstChar = "+"c OrElse firstChar = "-"c OrElse firstChar = "@"c Then
+                safeValue = "'" & safeValue
+            End If
+        End If
+
         Return $"""{safeValue.Replace("""", """""")}"""
     End Function
 
