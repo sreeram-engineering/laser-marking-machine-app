@@ -36,17 +36,16 @@ Copy the `.exe` to the marking PC and run it.
 
 ## Download From GitHub Actions
 
-The repository also keeps downloadable Windows app executables on each workflow run.
+The repository also keeps downloadable Windows app executables on each workflow run. Pull request builds are temporary preview builds and expire after 30 days.
 
 1. Open the GitHub repo.
-2. Go to `Actions`.
-3. Select `Build Windows App`.
-4. Open the latest successful run.
-5. Download one of the artifacts:
-   - `laser-marking-machine-app-win-x64`
-   - `laser-marking-machine-app-win-x86`
+2. Go to the pull request or to `Actions`.
+3. Open the successful `Build Windows App` workflow run.
+4. Download one of the artifacts:
+   - Pull requests: `laser-marking-machine-app-pr-<number>-win-x64` or `laser-marking-machine-app-pr-<number>-win-x86`
+   - Main/manual runs: `laser-marking-machine-app-<branch>-win-x64` or `laser-marking-machine-app-<branch>-win-x86`
 
-Each artifact contains the architecture-specific single executable.
+Each artifact contains the architecture-specific single executable. Production downloads from `main` are also published permanently under GitHub Releases.
 
 ## Default Paths
 
