@@ -306,6 +306,17 @@ Public Class MainForm
             LoadPartIntoFields(selected)
         ElseIf _activePart IsNot Nothing Then
             LoadPartIntoFields(_activePart)
+        Else
+            ' Clear part-related fields when no part is available
+            _partNumberBox.Tag = Nothing
+            _partNumberBox.Text = ""
+            _vendorBox.Text = ""
+            _plantBox.Text = ""
+            _customerBox.Text = ""
+            _prefixBox.Text = ""
+            _qrFormatBox.Text = ""
+            _templateBox.Text = ""
+            UpdateSetterPreview()
         End If
     End Sub
 
