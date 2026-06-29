@@ -595,8 +595,9 @@ Public Class MainForm
                 savedId = _database.SavePart(part)
             End If
 
-            CopyTemplateToActiveFolder(part.TemplateFile, _templateDirectoryBox.Text.Trim())
+            ' Set active part first, then promote template (atomic ordering)
             _database.SetActivePart(savedId, _currentUser)
+            CopyTemplateToActiveFolder(part.TemplateFile, _templateDirectoryBox.Text.Trim())
             If _currentUser.Role = UserRole.Admin Then
                 _settings = ReadSettingsFromFields()
                 _database.SaveSettings(_settings)
