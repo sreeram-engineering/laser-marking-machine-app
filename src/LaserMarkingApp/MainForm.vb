@@ -62,9 +62,9 @@ Public Class MainForm
 
         Text = "Laser Marking QR App"
         StartPosition = FormStartPosition.CenterScreen
-        FormBorderStyle = FormBorderStyle.None
-        WindowState = FormWindowState.Maximized
-        TopMost = True
+        FormBorderStyle = FormBorderStyle.Sizable
+        WindowState = FormWindowState.Normal
+        TopMost = False
         MinimumSize = New Size(980, 640)
         ClientSize = New Size(DesignWidth, DesignHeight)
         Font = New Font("Segoe UI", 10.0F, FontStyle.Regular, GraphicsUnit.Point)
@@ -114,7 +114,7 @@ Public Class MainForm
         _partNumberBox = AddLabeledTextBox(_setterPanel, "Part Number", 130)
         _vendorBox = AddLabeledTextBox(_setterPanel, "Item Code", 168)
         _plantBox = AddLabeledTextBox(_setterPanel, "Material", 206)
-        _customerBox = AddLabeledTextBox(_setterPanel, "Pattern", 244)
+        _customerBox = AddLabeledTextBox(_setterPanel, "Revision", 244)
         _prefixBox = AddLabeledTextBox(_setterPanel, "Product", 282)
         _qrFormatBox = AddLabeledTextBox(_setterPanel, "Supplier", 320)
         _templateBox = AddLabeledTextBox(_setterPanel, "Template", 358)
@@ -230,11 +230,11 @@ Public Class MainForm
         Return box
     End Function
 
-    Private Sub RefreshAll()
+    Private Sub RefreshAll(Optional editorPartId As Integer = 0)
         _settings = _database.LoadSettings()
         _activePart = _database.GetActivePart()
         RefreshOperatorView()
-        RefreshSetterParts()
+        RefreshSetterParts(editorPartId)
         LoadSettingsIntoSetterFields()
     End Sub
 
@@ -279,14 +279,21 @@ Public Class MainForm
         End Try
     End Sub
 
-    Private Sub RefreshSetterParts()
+    Private Sub RefreshSetterParts(Optional selectedPartId As Integer = 0)
         _partsCombo.Items.Clear()
+        Dim fallbackPart As PartRecord = Nothing
         For Each part In _database.GetParts()
             _partsCombo.Items.Add(part)
-            If part.IsActive Then
+            If selectedPartId > 0 AndAlso part.Id = selectedPartId Then
                 _partsCombo.SelectedItem = part
+            ElseIf part.IsActive Then
+                fallbackPart = part
             End If
         Next
+
+        If _partsCombo.SelectedItem Is Nothing AndAlso fallbackPart IsNot Nothing Then
+            _partsCombo.SelectedItem = fallbackPart
+        End If
     End Sub
 
     Private Sub LoadSettingsIntoSetterFields()
@@ -294,7 +301,10 @@ Public Class MainForm
         _templateDirectoryBox.Text = _settings.ActiveTemplateDirectory
         _serialRegexBox.Text = _settings.SerialRegex
         _externalCommandBox.Text = _settings.ExternalCommand
-        If _activePart IsNot Nothing Then
+        Dim selected = TryCast(_partsCombo.SelectedItem, PartRecord)
+        If selected IsNot Nothing Then
+            LoadPartIntoFields(selected)
+        ElseIf _activePart IsNot Nothing Then
             LoadPartIntoFields(_activePart)
         End If
     End Sub
@@ -327,7 +337,7 @@ Public Class MainForm
             .Pattern = _customerBox.Text.Trim(),
             .ProductName = _prefixBox.Text.Trim(),
             .SupplierName = _qrFormatBox.Text.Trim(),
-            .QrFormat = "{CustomerItemCode}${PartNumber}${DatePrefixSerial}${MarkDate}${MonthLabel}${HeatLot}${Material}${Pattern}${ProductName}${SupplierName}$",
+            .QrFormat = "{CustomerItemCode}${PartNumber}${DatePrefixSerial}${MarkDate}${MonthLabel}${Material}${HeatLot}${Pattern}${ProductName}${SupplierName}$",
             .TemplateFile = _templateBox.Text.Trim()
         }
     End Function
@@ -523,7 +533,8 @@ Public Class MainForm
             _settings = ReadSettingsFromFields()
             _database.SaveSettings(_settings)
             part.Id = savedId
-            RefreshAll()
+            RefreshAll(savedId)
+            ApplySetterPermissions()
             _setterStatusLabel.ForeColor = Color.DarkGreen
             _setterStatusLabel.Text = "Saved."
         Catch ex As Exception
@@ -678,7 +689,7 @@ Public Class MainForm
         End If
 
         If String.IsNullOrWhiteSpace(part.Pattern) Then
-            Throw New InvalidOperationException("Pattern is required.")
+            Throw New InvalidOperationException("Revision is required.")
         End If
 
         If String.IsNullOrWhiteSpace(part.ProductName) Then

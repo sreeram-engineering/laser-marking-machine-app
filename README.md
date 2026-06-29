@@ -105,13 +105,13 @@ Only Admin users can open `Users` from the setter screen. Admins can create user
 The app writes the full EZCAD text payload in this format:
 
 ```text
-CustomerItemCode$PartNumber$DatePrefixSerial$Date$MonthLabel$HeatLot$Material$Pattern$Product$Supplier$
+CustomerItemCode$PartNumber$DatePrefixSerial$Date$MonthLabel$Material$HeatLot$Revision$Product$Supplier$
 ```
 
 Example:
 
 ```text
-7201097$B3F02001$26B-744$27.02.2026$FEB-26$26-4B-21$FG260$#.0$FLYWHEEL$SREERAMENGG$
+7201097$B3F02301$26F-1705$27.06.2026$JUN-26$FG260$26-4F-3204$#.0$FLYWHEEL$SREERAMENGG$
 ```
 
 The serial number is generated globally across all parts. The date prefix uses `YYM-`, where `A=Jan`, `B=Feb`, through `L=Dec`.

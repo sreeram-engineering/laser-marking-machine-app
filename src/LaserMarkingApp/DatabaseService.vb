@@ -643,22 +643,13 @@ ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value;"
         For Each seed In seeds
             seed.VendorCode = seed.CustomerItemCode
             seed.CustomerCode = seed.CustomerItemCode
-            seed.QrFormat = "{CustomerItemCode}${PartNumber}${DatePrefixSerial}${MarkDate}${MonthLabel}${HeatLot}${Material}${Pattern}${ProductName}${SupplierName}$"
+            seed.QrFormat = "{CustomerItemCode}${PartNumber}${DatePrefixSerial}${MarkDate}${MonthLabel}${Material}${HeatLot}${Pattern}${ProductName}${SupplierName}$"
 
             Using command = connection.CreateCommand()
                 command.CommandText = "
 INSERT INTO Parts (PartNumber, VendorCode, PlantCode, CustomerCode, QRPrefix, QRFormat, CustomerItemCode, Material, Pattern, ProductName, SupplierName, TemplateFile, IsActive)
 VALUES ($partNumber, $vendorCode, '', $customerCode, '', $qrFormat, $customerItemCode, $material, $pattern, $productName, $supplierName, $templateFile, $isActive)
-ON CONFLICT(PartNumber) DO UPDATE SET
-    VendorCode = excluded.VendorCode,
-    CustomerCode = excluded.CustomerCode,
-    QRFormat = excluded.QRFormat,
-    CustomerItemCode = excluded.CustomerItemCode,
-    Material = excluded.Material,
-    Pattern = excluded.Pattern,
-    ProductName = excluded.ProductName,
-    SupplierName = excluded.SupplierName,
-    TemplateFile = excluded.TemplateFile;"
+ON CONFLICT(PartNumber) DO NOTHING;"
                 AddPartParameters(command, seed)
                 command.Parameters.AddWithValue("$isActive", If(seed.IsActive, 1, 0))
                 command.ExecuteNonQuery()

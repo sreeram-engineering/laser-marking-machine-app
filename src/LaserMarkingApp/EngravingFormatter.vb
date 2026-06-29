@@ -25,8 +25,8 @@ Public NotInheritable Class EngravingFormatter
             $"{BuildDatePrefix(markDate)}{serialNumber}",
             markDate.ToString("dd.MM.yyyy", CultureInfo.InvariantCulture),
             markDate.ToString("MMM-yy", CultureInfo.InvariantCulture).ToUpperInvariant(),
-            heatLot,
             CleanSegment(part.Material),
+            heatLot,
             CleanSegment(part.Pattern),
             CleanSegment(part.ProductName),
             CleanSegment(part.SupplierName)
