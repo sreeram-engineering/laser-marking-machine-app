@@ -48,6 +48,7 @@ Public Class MainForm
     Private ReadOnly _saveButton As Button
     Private ReadOnly _setActiveButton As Button
     Private ReadOnly _usersButton As Button
+    Private ReadOnly _logsButton As Button
     Private ReadOnly _baseBounds As New Dictionary(Of Control, Rectangle)()
     Private ReadOnly _baseFontSizes As New Dictionary(Of Control, Single)()
 
@@ -58,14 +59,15 @@ Public Class MainForm
         _database = database
         _settings = _database.LoadSettings()
         _activePart = _database.GetActivePart()
+        _currentUser = LoadOperatorUser()
 
         Text = "Laser Marking QR App"
-        StartPosition = FormStartPosition.CenterScreen
+        StartPosition = FormStartPosition.Manual
         FormBorderStyle = FormBorderStyle.None
-        WindowState = FormWindowState.Maximized
         TopMost = True
-        MinimumSize = New Size(980, 640)
-        ClientSize = New Size(DesignWidth, DesignHeight)
+        KeyPreview = True
+        MinimumSize = Size.Empty
+        ApplyKioskBounds()
         Font = New Font("Segoe UI", 10.0F, FontStyle.Regular, GraphicsUnit.Point)
 
         _contentPanel = New Panel With {.Location = New Point(0, 0), .Size = New Size(DesignWidth, DesignHeight)}
@@ -113,7 +115,7 @@ Public Class MainForm
         _partNumberBox = AddLabeledTextBox(_setterPanel, "Part Number", 130)
         _vendorBox = AddLabeledTextBox(_setterPanel, "Item Code", 168)
         _plantBox = AddLabeledTextBox(_setterPanel, "Material", 206)
-        _customerBox = AddLabeledTextBox(_setterPanel, "Pattern", 244)
+        _customerBox = AddLabeledTextBox(_setterPanel, "Revision", 244)
         _prefixBox = AddLabeledTextBox(_setterPanel, "Product", 282)
         _qrFormatBox = AddLabeledTextBox(_setterPanel, "Supplier", 320)
         _templateBox = AddLabeledTextBox(_setterPanel, "Template", 358)
@@ -126,6 +128,7 @@ Public Class MainForm
         _browseButton = New Button With {.Text = "...", .Location = New Point(430, 356), .Size = New Size(34, 28)}
         _usersButton = New Button With {.Text = "Users", .Location = New Point(20, 544), .Size = New Size(68, 30)}
         _deletePartButton = New Button With {.Text = "Delete", .Location = New Point(96, 544), .Size = New Size(68, 30)}
+        _logsButton = New Button With {.Text = "Logs", .Location = New Point(172, 544), .Size = New Size(68, 30)}
         _saveButton = New Button With {.Text = "Save", .Location = New Point(282, 544), .Size = New Size(58, 30)}
         _setActiveButton = New Button With {.Text = "Set Active", .Location = New Point(348, 544), .Size = New Size(84, 30)}
 
@@ -134,6 +137,7 @@ Public Class MainForm
         AddHandler loadPartButton.Click, AddressOf LoadPartButton_Click
         AddHandler _browseButton.Click, AddressOf BrowseButton_Click
         AddHandler _usersButton.Click, AddressOf UsersButton_Click
+        AddHandler _logsButton.Click, AddressOf LogsButton_Click
         AddHandler _deletePartButton.Click, AddressOf DeletePartButton_Click
         AddHandler _saveButton.Click, AddressOf SaveButton_Click
         AddHandler _setActiveButton.Click, AddressOf SetActiveButton_Click
@@ -146,7 +150,7 @@ Public Class MainForm
 
         _setterPanel.Controls.AddRange({
             setterHeader, logoutButton, partSelectLabel, _partsCombo, _newPartButton, loadPartButton,
-            _setterPreviewLabel, _browseButton, _usersButton, _deletePartButton, _saveButton, _setActiveButton, _setterStatusLabel
+            _setterPreviewLabel, _browseButton, _usersButton, _deletePartButton, _logsButton, _saveButton, _setActiveButton, _setterStatusLabel
         })
 
         _contentPanel.Controls.AddRange({operatorPanel, _setterPanel})
@@ -154,6 +158,7 @@ Public Class MainForm
 
         AddHandler MouseMove, AddressOf AnyActivity
         AddHandler KeyDown, AddressOf AnyKeyActivity
+        AddHandler KeyDown, AddressOf MainForm_KeyDown
         AddHandler FormClosing, AddressOf MainForm_FormClosing
         AddHandler Resize, AddressOf MainForm_Resize
         WireActivityHandlers(Me)
@@ -166,6 +171,26 @@ Public Class MainForm
 
         RefreshAll()
         _serialBox.Focus()
+    End Sub
+
+    Protected Overrides Sub OnShown(e As EventArgs)
+        MyBase.OnShown(e)
+        ApplyKioskBounds()
+        BringToFront()
+        Activate()
+        _serialBox.Focus()
+    End Sub
+
+    Private Sub ApplyKioskBounds()
+        Dim primaryScreen = Screen.PrimaryScreen
+        If primaryScreen Is Nothing Then
+            WindowState = FormWindowState.Maximized
+            Return
+        End If
+
+        WindowState = FormWindowState.Normal
+        Bounds = primaryScreen.Bounds
+        WindowState = FormWindowState.Maximized
     End Sub
 
     Private Sub CaptureBaseLayout(parent As Control)
@@ -227,11 +252,11 @@ Public Class MainForm
         Return box
     End Function
 
-    Private Sub RefreshAll()
+    Private Sub RefreshAll(Optional editorPartId As Integer = 0)
         _settings = _database.LoadSettings()
         _activePart = _database.GetActivePart()
         RefreshOperatorView()
-        RefreshSetterParts()
+        RefreshSetterParts(editorPartId)
         LoadSettingsIntoSetterFields()
     End Sub
 
@@ -276,14 +301,21 @@ Public Class MainForm
         End Try
     End Sub
 
-    Private Sub RefreshSetterParts()
+    Private Sub RefreshSetterParts(Optional selectedPartId As Integer = 0)
         _partsCombo.Items.Clear()
+        Dim fallbackPart As PartRecord = Nothing
         For Each part In _database.GetParts()
             _partsCombo.Items.Add(part)
-            If part.IsActive Then
+            If selectedPartId > 0 AndAlso part.Id = selectedPartId Then
                 _partsCombo.SelectedItem = part
+            ElseIf part.IsActive Then
+                fallbackPart = part
             End If
         Next
+
+        If _partsCombo.SelectedItem Is Nothing AndAlso fallbackPart IsNot Nothing Then
+            _partsCombo.SelectedItem = fallbackPart
+        End If
     End Sub
 
     Private Sub LoadSettingsIntoSetterFields()
@@ -291,8 +323,22 @@ Public Class MainForm
         _templateDirectoryBox.Text = _settings.ActiveTemplateDirectory
         _serialRegexBox.Text = _settings.SerialRegex
         _externalCommandBox.Text = _settings.ExternalCommand
-        If _activePart IsNot Nothing Then
+        Dim selected = TryCast(_partsCombo.SelectedItem, PartRecord)
+        If selected IsNot Nothing Then
+            LoadPartIntoFields(selected)
+        ElseIf _activePart IsNot Nothing Then
             LoadPartIntoFields(_activePart)
+        Else
+            ' Clear part-related fields when no part is available
+            _partNumberBox.Tag = Nothing
+            _partNumberBox.Text = ""
+            _vendorBox.Text = ""
+            _plantBox.Text = ""
+            _customerBox.Text = ""
+            _prefixBox.Text = ""
+            _qrFormatBox.Text = ""
+            _templateBox.Text = ""
+            UpdateSetterPreview()
         End If
     End Sub
 
@@ -324,7 +370,7 @@ Public Class MainForm
             .Pattern = _customerBox.Text.Trim(),
             .ProductName = _prefixBox.Text.Trim(),
             .SupplierName = _qrFormatBox.Text.Trim(),
-            .QrFormat = "{CustomerItemCode}${PartNumber}${DatePrefixSerial}${MarkDate}${MonthLabel}${HeatLot}${Material}${Pattern}${ProductName}${SupplierName}$",
+            .QrFormat = "{CustomerItemCode}${PartNumber}${DatePrefixSerial}${MarkDate}${MonthLabel}${Material}${HeatLot}${Pattern}${ProductName}${SupplierName}$",
             .TemplateFile = _templateBox.Text.Trim()
         }
     End Function
@@ -369,7 +415,7 @@ Public Class MainForm
                 result = RunExternalCommand(_settings.ExternalCommand)
             End If
 
-            _database.InsertMarkLog(_activePart.PartNumber, generatedSerial, heatLotNumber, qrData, _currentUser.Username, result)
+            _database.InsertMarkLog(_activePart.PartNumber, generatedSerial, heatLotNumber, qrData, _currentUser, result)
             _statusLabel.ForeColor = Color.DarkGreen
             _statusLabel.Text = $"Ready for EZCAD: {qrData}"
             _serialBox.Clear()
@@ -421,6 +467,7 @@ Public Class MainForm
         _browseButton.Enabled = isAdmin
         _saveButton.Enabled = isAdmin
         _usersButton.Enabled = isAdmin
+        _logsButton.Enabled = isAdmin
     End Sub
 
     Private Function GetAdminOnlyTextBoxes() As IEnumerable(Of TextBox)
@@ -481,6 +528,9 @@ Public Class MainForm
         Using dialog = New OpenFileDialog()
             dialog.Title = "Select EZCAD template"
             dialog.Filter = "EZCAD templates (*.ezd)|*.ezd|All files (*.*)|*.*"
+            If Directory.Exists("D:\QUALITY-3") Then
+                dialog.InitialDirectory = "D:\QUALITY-3"
+            End If
             If dialog.ShowDialog(Me) = DialogResult.OK Then
                 _templateBox.Text = dialog.FileName
             End If
@@ -492,7 +542,17 @@ Public Class MainForm
             Return
         End If
 
-        Using form = New UserManagementForm(_database)
+        Using form = New UserManagementForm(_database, _currentUser)
+            form.ShowDialog(Me)
+        End Using
+    End Sub
+
+    Private Sub LogsButton_Click(sender As Object, e As EventArgs)
+        If Not RequireAdminAction() Then
+            Return
+        End If
+
+        Using form = New ProductionLogsForm(_database)
             form.ShowDialog(Me)
         End Using
     End Sub
@@ -509,7 +569,8 @@ Public Class MainForm
             _settings = ReadSettingsFromFields()
             _database.SaveSettings(_settings)
             part.Id = savedId
-            RefreshAll()
+            RefreshAll(savedId)
+            ApplySetterPermissions()
             _setterStatusLabel.ForeColor = Color.DarkGreen
             _setterStatusLabel.Text = "Saved."
         Catch ex As Exception
@@ -559,8 +620,9 @@ Public Class MainForm
                 savedId = _database.SavePart(part)
             End If
 
+            ' Set active part first, then promote template (atomic ordering)
+            _database.SetActivePart(savedId, _currentUser)
             CopyTemplateToActiveFolder(part.TemplateFile, _templateDirectoryBox.Text.Trim())
-            _database.SetActivePart(savedId)
             If _currentUser.Role = UserRole.Admin Then
                 _settings = ReadSettingsFromFields()
                 _database.SaveSettings(_settings)
@@ -601,12 +663,21 @@ Public Class MainForm
     End Sub
 
     Private Sub LogoutToOperator()
-        _currentUser = New UserRecord With {.Username = "operator", .Role = UserRole.OperatorUser}
+        _currentUser = LoadOperatorUser()
         _setterPanel.Enabled = False
         ApplySetterPermissions()
         RefreshOperatorView()
         _serialBox.Focus()
     End Sub
+
+    Private Function LoadOperatorUser() As UserRecord
+        Dim operatorUser = _database.FindUser("operator")
+        If operatorUser IsNot Nothing Then
+            Return operatorUser
+        End If
+
+        Return _database.SaveUser("operator", "operator123", UserRole.OperatorUser, returnUser:=True)
+    End Function
 
     Private Sub AnyActivity(sender As Object, e As MouseEventArgs)
         _lastActivity = DateTime.Now
@@ -614,6 +685,14 @@ Public Class MainForm
 
     Private Sub AnyKeyActivity(sender As Object, e As KeyEventArgs)
         _lastActivity = DateTime.Now
+    End Sub
+
+    Private Sub MainForm_KeyDown(sender As Object, e As KeyEventArgs)
+        If e.Alt AndAlso e.KeyCode = Keys.F4 Then
+            e.Handled = True
+            e.SuppressKeyPress = True
+            Close()
+        End If
     End Sub
 
     Private Sub WireActivityHandlers(parent As Control)
@@ -664,7 +743,7 @@ Public Class MainForm
         End If
 
         If String.IsNullOrWhiteSpace(part.Pattern) Then
-            Throw New InvalidOperationException("Pattern is required.")
+            Throw New InvalidOperationException("Revision is required.")
         End If
 
         If String.IsNullOrWhiteSpace(part.ProductName) Then

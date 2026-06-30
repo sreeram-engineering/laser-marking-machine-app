@@ -46,7 +46,8 @@ CREATE TABLE IF NOT EXISTS Users (
     Id INTEGER PRIMARY KEY AUTOINCREMENT,
     Username TEXT NOT NULL UNIQUE COLLATE NOCASE,
     PasswordHash TEXT NOT NULL,
-    Role INTEGER NOT NULL
+    Role INTEGER NOT NULL,
+    IsDeleted INTEGER NOT NULL DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS Settings (
@@ -61,7 +62,20 @@ CREATE TABLE IF NOT EXISTS MarkLog (
     QRData TEXT NOT NULL,
     TimestampUtc TEXT NOT NULL,
     Username TEXT NOT NULL,
-    Result TEXT NOT NULL
+    Result TEXT NOT NULL,
+    UserId INTEGER,
+    FOREIGN KEY (UserId) REFERENCES Users(Id)
+);
+
+CREATE TABLE IF NOT EXISTS PartSelectionLog (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    PartId INTEGER NOT NULL,
+    PartNumber TEXT NOT NULL,
+    SelectedBy TEXT NOT NULL,
+    SelectedByUserId INTEGER,
+    SelectedRole INTEGER NOT NULL,
+    TimestampUtc TEXT NOT NULL,
+    FOREIGN KEY (SelectedByUserId) REFERENCES Users(Id)
 );
 
 CREATE UNIQUE INDEX IF NOT EXISTS UX_MarkLog_Part_Serial
@@ -72,8 +86,15 @@ ON MarkLog (PartNumber, SerialNumber);
             EnsureColumn(connection, "Parts", "Pattern", "TEXT NOT NULL DEFAULT '#'")
             EnsureColumn(connection, "Parts", "ProductName", "TEXT NOT NULL DEFAULT 'FLYWHEEL'")
             EnsureColumn(connection, "Parts", "SupplierName", "TEXT NOT NULL DEFAULT 'SREERAMENGG'")
+            EnsureColumn(connection, "Users", "IsDeleted", "INTEGER NOT NULL DEFAULT 0")
+            EnsureColumn(connection, "MarkLog", "Result", "TEXT NOT NULL DEFAULT 'Legacy'")
             EnsureColumn(connection, "MarkLog", "HeatLotNumber", "TEXT NOT NULL DEFAULT ''")
             EnsureColumn(connection, "MarkLog", "GeneratedSerial", "INTEGER NOT NULL DEFAULT 0")
+            EnsureColumn(connection, "MarkLog", "UserId", "INTEGER")
+            EnsureColumn(connection, "PartSelectionLog", "SelectedByUserId", "INTEGER")
+            BackfillLogUserIds(connection)
+            EnsureLogUserForeignKeys(connection)
+            ExecuteNonQuery(connection, "PRAGMA foreign_keys=ON;")
             SeedDefaults(connection)
         End Using
     End Sub
@@ -183,9 +204,27 @@ SELECT last_insert_rowid();"
         End Using
     End Function
 
-    Public Sub SetActivePart(partId As Integer)
+    Public Sub SetActivePart(partId As Integer, selectedBy As UserRecord)
+        If selectedBy Is Nothing Then
+            Throw New ArgumentNullException(NameOf(selectedBy))
+        End If
+
         Using connection = OpenConnection()
             Using transaction = connection.BeginTransaction()
+                Dim partNumber As String = Nothing
+
+                Using partCommand = connection.CreateCommand()
+                    partCommand.Transaction = transaction
+                    partCommand.CommandText = "SELECT PartNumber FROM Parts WHERE Id = $id LIMIT 1;"
+                    partCommand.Parameters.AddWithValue("$id", partId)
+                    Dim value = partCommand.ExecuteScalar()
+                    If value Is Nothing OrElse value Is DBNull.Value Then
+                        Throw New InvalidOperationException("Part was not found.")
+                    End If
+
+                    partNumber = Convert.ToString(value)
+                End Using
+
                 Using clearCommand = connection.CreateCommand()
                     clearCommand.Transaction = transaction
                     clearCommand.CommandText = "UPDATE Parts SET IsActive = 0;"
@@ -197,6 +236,20 @@ SELECT last_insert_rowid();"
                     setCommand.CommandText = "UPDATE Parts SET IsActive = 1 WHERE Id = $id;"
                     setCommand.Parameters.AddWithValue("$id", partId)
                     setCommand.ExecuteNonQuery()
+                End Using
+
+                Using logCommand = connection.CreateCommand()
+                    logCommand.Transaction = transaction
+                    logCommand.CommandText = "
+INSERT INTO PartSelectionLog (PartId, PartNumber, SelectedBy, SelectedByUserId, SelectedRole, TimestampUtc)
+VALUES ($partId, $partNumber, $selectedBy, $selectedByUserId, $selectedRole, $timestampUtc);"
+                    logCommand.Parameters.AddWithValue("$partId", partId)
+                    logCommand.Parameters.AddWithValue("$partNumber", partNumber)
+                    logCommand.Parameters.AddWithValue("$selectedBy", selectedBy.Username)
+                    logCommand.Parameters.AddWithValue("$selectedByUserId", RequireSavedUserId(selectedBy))
+                    logCommand.Parameters.AddWithValue("$selectedRole", CInt(selectedBy.Role))
+                    logCommand.Parameters.AddWithValue("$timestampUtc", DateTime.UtcNow.ToString("O"))
+                    logCommand.ExecuteNonQuery()
                 End Using
 
                 transaction.Commit()
@@ -251,17 +304,17 @@ WHERE Id = (
     Public Function FindUser(username As String) As UserRecord
         Using connection = OpenConnection()
             Using command = connection.CreateCommand()
-                command.CommandText = "SELECT Id, Username, PasswordHash, Role FROM Users WHERE Username = $username LIMIT 1;"
+                command.CommandText = "
+SELECT Id, Username, PasswordHash, Role, IsDeleted
+FROM Users
+WHERE Username = $username
+  AND IsDeleted = 0
+LIMIT 1;"
                 command.Parameters.AddWithValue("$username", username)
 
                 Using reader = command.ExecuteReader()
                     If reader.Read() Then
-                        Return New UserRecord With {
-                            .Id = reader.GetInt32(0),
-                            .Username = reader.GetString(1),
-                            .PasswordHash = reader.GetString(2),
-                            .Role = CType(reader.GetInt32(3), UserRole)
-                        }
+                        Return ReadUser(reader)
                     End If
                 End Using
             End Using
@@ -275,15 +328,14 @@ WHERE Id = (
 
         Using connection = OpenConnection()
             Using command = connection.CreateCommand()
-                command.CommandText = "SELECT Id, Username, PasswordHash, Role FROM Users ORDER BY Username;"
+                command.CommandText = "
+SELECT Id, Username, PasswordHash, Role, IsDeleted
+FROM Users
+WHERE IsDeleted = 0
+ORDER BY Username;"
                 Using reader = command.ExecuteReader()
                     While reader.Read()
-                        users.Add(New UserRecord With {
-                            .Id = reader.GetInt32(0),
-                            .Username = reader.GetString(1),
-                            .PasswordHash = reader.GetString(2),
-                            .Role = CType(reader.GetInt32(3), UserRole)
-                        })
+                        users.Add(ReadUser(reader))
                     End While
                 End Using
             End Using
@@ -308,11 +360,62 @@ INSERT INTO Users (Username, PasswordHash, Role)
 VALUES ($username, $passwordHash, $role)
 ON CONFLICT(Username) DO UPDATE SET
     PasswordHash = excluded.PasswordHash,
-    Role = excluded.Role;"
+    Role = excluded.Role,
+    IsDeleted = 0;"
                 command.Parameters.AddWithValue("$username", username.Trim())
                 command.Parameters.AddWithValue("$passwordHash", PasswordHasher.HashPassword(password))
                 command.Parameters.AddWithValue("$role", CInt(role))
                 command.ExecuteNonQuery()
+            End Using
+        End Using
+    End Sub
+
+    Public Function SaveUser(username As String, password As String, role As UserRole, returnUser As Boolean) As UserRecord
+        SaveUser(username, password, role)
+        Return FindUser(username)
+    End Function
+
+    Public Sub SoftDeleteUser(userId As Integer, currentUserId As Integer)
+        If userId <= 0 Then
+            Throw New ArgumentException("Select a saved user before deleting.", NameOf(userId))
+        End If
+
+        If userId = currentUserId Then
+            Throw New InvalidOperationException("You cannot delete the currently logged-in admin.")
+        End If
+
+        Using connection = OpenConnection()
+            Using transaction = connection.BeginTransaction()
+                Dim username As String = Nothing
+                Dim role As UserRole
+
+                Using selectCommand = connection.CreateCommand()
+                    selectCommand.Transaction = transaction
+                    selectCommand.CommandText = "SELECT Username, Role FROM Users WHERE Id = $id AND IsDeleted = 0 LIMIT 1;"
+                    selectCommand.Parameters.AddWithValue("$id", userId)
+
+                    Using reader = selectCommand.ExecuteReader()
+                        If Not reader.Read() Then
+                            Throw New InvalidOperationException("User was not found.")
+                        End If
+
+                        username = reader.GetString(0)
+                        role = CType(reader.GetInt32(1), UserRole)
+                    End Using
+                End Using
+
+                If role = UserRole.OperatorUser AndAlso String.Equals(username, "operator", StringComparison.OrdinalIgnoreCase) Then
+                    Throw New InvalidOperationException("The built-in operator user is required for production logs.")
+                End If
+
+                Using updateCommand = connection.CreateCommand()
+                    updateCommand.Transaction = transaction
+                    updateCommand.CommandText = "UPDATE Users SET IsDeleted = 1 WHERE Id = $id;"
+                    updateCommand.Parameters.AddWithValue("$id", userId)
+                    updateCommand.ExecuteNonQuery()
+                End Using
+
+                transaction.Commit()
             End Using
         End Using
     End Sub
@@ -338,7 +441,9 @@ WHERE PartNumber = $partNumber
         End Using
     End Function
 
-    Public Sub InsertMarkLog(partNumber As String, generatedSerial As Integer, heatLotNumber As String, qrData As String, username As String, result As String)
+    Public Sub InsertMarkLog(partNumber As String, generatedSerial As Integer, heatLotNumber As String, qrData As String, user As UserRecord, result As String)
+        Dim userId = RequireSavedUserId(user)
+
         Using connection = OpenConnection()
             Using transaction = connection.BeginTransaction()
                 Dim currentSerial = GetIntegerSetting(connection, "NextSerialNumber", 1)
@@ -349,13 +454,14 @@ WHERE PartNumber = $partNumber
                 Using command = connection.CreateCommand()
                     command.Transaction = transaction
                     command.CommandText = "
-INSERT INTO MarkLog (PartNumber, SerialNumber, QRData, TimestampUtc, Username, Result, HeatLotNumber, GeneratedSerial)
-VALUES ($partNumber, $serialNumber, $qrData, $timestampUtc, $username, $result, $heatLotNumber, $generatedSerial);"
+INSERT INTO MarkLog (PartNumber, SerialNumber, QRData, TimestampUtc, Username, UserId, Result, HeatLotNumber, GeneratedSerial)
+VALUES ($partNumber, $serialNumber, $qrData, $timestampUtc, $username, $userId, $result, $heatLotNumber, $generatedSerial);"
                     command.Parameters.AddWithValue("$partNumber", partNumber)
                     command.Parameters.AddWithValue("$serialNumber", generatedSerial.ToString())
                     command.Parameters.AddWithValue("$qrData", qrData)
                     command.Parameters.AddWithValue("$timestampUtc", DateTime.UtcNow.ToString("O"))
-                    command.Parameters.AddWithValue("$username", username)
+                    command.Parameters.AddWithValue("$username", user.Username)
+                    command.Parameters.AddWithValue("$userId", userId)
                     command.Parameters.AddWithValue("$result", result)
                     command.Parameters.AddWithValue("$heatLotNumber", heatLotNumber)
                     command.Parameters.AddWithValue("$generatedSerial", generatedSerial)
@@ -377,26 +483,108 @@ ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value;"
         End Using
     End Sub
 
-    Public Sub InsertMarkLog(partNumber As String, serialNumber As String, qrData As String, username As String, result As String)
+    Public Sub InsertMarkLog(partNumber As String, serialNumber As String, qrData As String, user As UserRecord, result As String)
+        Dim userId = RequireSavedUserId(user)
+
         Using connection = OpenConnection()
             Using command = connection.CreateCommand()
                 command.CommandText = "
-INSERT INTO MarkLog (PartNumber, SerialNumber, QRData, TimestampUtc, Username, Result)
-VALUES ($partNumber, $serialNumber, $qrData, $timestampUtc, $username, $result);"
+INSERT INTO MarkLog (PartNumber, SerialNumber, QRData, TimestampUtc, Username, UserId, Result)
+VALUES ($partNumber, $serialNumber, $qrData, $timestampUtc, $username, $userId, $result);"
                 command.Parameters.AddWithValue("$partNumber", partNumber)
                 command.Parameters.AddWithValue("$serialNumber", serialNumber)
                 command.Parameters.AddWithValue("$qrData", qrData)
                 command.Parameters.AddWithValue("$timestampUtc", DateTime.UtcNow.ToString("O"))
-                command.Parameters.AddWithValue("$username", username)
+                command.Parameters.AddWithValue("$username", user.Username)
+                command.Parameters.AddWithValue("$userId", userId)
                 command.Parameters.AddWithValue("$result", result)
                 command.ExecuteNonQuery()
             End Using
         End Using
     End Sub
 
+    Public Function GetPartSelectionLogs(limit As Integer) As List(Of PartSelectionLogRecord)
+        Dim logs = New List(Of PartSelectionLogRecord)()
+        Dim safeLimit = Math.Max(1, limit)
+
+        Using connection = OpenConnection()
+            Using command = connection.CreateCommand()
+                command.CommandText = "
+SELECT Id, PartId, SelectedByUserId, PartNumber, SelectedBy, SelectedRole, TimestampUtc
+FROM PartSelectionLog
+ORDER BY Id DESC
+LIMIT $limit;"
+                command.Parameters.AddWithValue("$limit", safeLimit)
+
+                Using reader = command.ExecuteReader()
+                    While reader.Read()
+                        logs.Add(New PartSelectionLogRecord With {
+                            .Id = reader.GetInt32(0),
+                            .PartId = reader.GetInt32(1),
+                            .SelectedByUserId = If(reader.IsDBNull(2), CType(Nothing, Integer?), reader.GetInt32(2)),
+                            .PartNumber = reader.GetString(3),
+                            .SelectedBy = reader.GetString(4),
+                            .SelectedRole = CType(reader.GetInt32(5), UserRole),
+                            .TimestampUtc = reader.GetString(6)
+                        })
+                    End While
+                End Using
+            End Using
+        End Using
+
+        Return logs
+    End Function
+
+    Public Function GetMarkLogs(limit As Integer) As List(Of MarkLogRecord)
+        Dim logs = New List(Of MarkLogRecord)()
+        Dim safeLimit = Math.Max(1, limit)
+
+        Using connection = OpenConnection()
+            Using command = connection.CreateCommand()
+                command.CommandText = "
+SELECT Id,
+       UserId,
+       PartNumber,
+       CASE WHEN GeneratedSerial = 0 THEN NULL ELSE GeneratedSerial END AS GeneratedSerial,
+       CASE WHEN GeneratedSerial = 0 AND HeatLotNumber = '' THEN NULL ELSE HeatLotNumber END AS HeatLotNumber,
+       QRData,
+       TimestampUtc,
+       Username,
+       Result
+FROM MarkLog
+ORDER BY Id DESC
+LIMIT $limit;"
+                command.Parameters.AddWithValue("$limit", safeLimit)
+
+                Using reader = command.ExecuteReader()
+                    While reader.Read()
+                        Dim userId As Integer? = If(reader.IsDBNull(1), CType(Nothing, Integer?), reader.GetInt32(1))
+                        Dim generatedSerial As Integer? = If(reader.IsDBNull(3), CType(Nothing, Integer?), reader.GetInt32(3))
+                        Dim heatLotNumber = If(reader.IsDBNull(4), "", reader.GetString(4))
+
+                        logs.Add(New MarkLogRecord With {
+                            .Id = reader.GetInt32(0),
+                            .UserId = userId,
+                            .PartNumber = reader.GetString(2),
+                            .GeneratedSerial = generatedSerial,
+                            .HeatLotNumber = heatLotNumber,
+                            .EngravingData = reader.GetString(5),
+                            .TimestampUtc = reader.GetString(6),
+                            .Username = reader.GetString(7),
+                            .Result = reader.GetString(8)
+                        })
+                    End While
+                End Using
+            End Using
+        End Using
+
+        Return logs
+    End Function
+
     Private Function OpenConnection() As SqliteConnection
         Dim connection = New SqliteConnection(_connectionString)
         connection.Open()
+        ExecuteNonQuery(connection, "PRAGMA foreign_keys=ON;")
         Return connection
     End Function
 
@@ -442,6 +630,24 @@ FROM Parts
         }
     End Function
 
+    Private Shared Function ReadUser(reader As IDataRecord) As UserRecord
+        Return New UserRecord With {
+            .Id = reader.GetInt32(0),
+            .Username = reader.GetString(1),
+            .PasswordHash = reader.GetString(2),
+            .Role = CType(reader.GetInt32(3), UserRole),
+            .IsDeleted = reader.GetInt32(4) = 1
+        }
+    End Function
+
+    Private Shared Function RequireSavedUserId(user As UserRecord) As Integer
+        If user Is Nothing OrElse user.Id <= 0 Then
+            Throw New InvalidOperationException("A saved user is required for this operation.")
+        End If
+
+        Return user.Id
+    End Function
+
     Private Shared Sub ExecuteNonQuery(connection As SqliteConnection, sql As String)
         Using command = connection.CreateCommand()
             command.CommandText = sql
@@ -465,6 +671,119 @@ FROM Parts
             alterCommand.CommandText = $"ALTER TABLE {tableName} ADD COLUMN {columnName} {columnDefinition};"
             alterCommand.ExecuteNonQuery()
         End Using
+    End Sub
+
+    Private Shared Function HasForeignKey(connection As SqliteConnection, tableName As String, columnName As String) As Boolean
+        Using command = connection.CreateCommand()
+            command.CommandText = $"PRAGMA foreign_key_list({tableName});"
+            Using reader = command.ExecuteReader()
+                While reader.Read()
+                    If String.Equals(reader.GetString(3), columnName, StringComparison.OrdinalIgnoreCase) Then
+                        Return True
+                    End If
+                End While
+            End Using
+        End Using
+
+        Return False
+    End Function
+
+    Private Shared Sub BackfillLogUserIds(connection As SqliteConnection)
+        ExecuteNonQuery(connection, "
+UPDATE MarkLog
+SET UserId = (
+    SELECT Users.Id
+    FROM Users
+    WHERE Users.Username = MarkLog.Username COLLATE NOCASE
+    LIMIT 1
+)
+WHERE UserId IS NULL;
+
+UPDATE PartSelectionLog
+SET SelectedByUserId = (
+    SELECT Users.Id
+    FROM Users
+    WHERE Users.Username = PartSelectionLog.SelectedBy COLLATE NOCASE
+    LIMIT 1
+)
+WHERE SelectedByUserId IS NULL;")
+    End Sub
+
+    Private Shared Sub EnsureLogUserForeignKeys(connection As SqliteConnection)
+        If Not HasForeignKey(connection, "MarkLog", "UserId") Then
+            RebuildMarkLogWithUserForeignKey(connection)
+        End If
+
+        If Not HasForeignKey(connection, "PartSelectionLog", "SelectedByUserId") Then
+            RebuildPartSelectionLogWithUserForeignKey(connection)
+        End If
+    End Sub
+
+    Private Shared Sub RebuildMarkLogWithUserForeignKey(connection As SqliteConnection)
+        ExecuteNonQuery(connection, "PRAGMA foreign_keys=OFF;")
+        ExecuteNonQuery(connection, "
+CREATE TABLE MarkLog_New (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    PartNumber TEXT NOT NULL,
+    SerialNumber TEXT NOT NULL,
+    QRData TEXT NOT NULL,
+    TimestampUtc TEXT NOT NULL,
+    Username TEXT NOT NULL,
+    Result TEXT NOT NULL,
+    HeatLotNumber TEXT NOT NULL DEFAULT '',
+    GeneratedSerial INTEGER NOT NULL DEFAULT 0,
+    UserId INTEGER,
+    FOREIGN KEY (UserId) REFERENCES Users(Id)
+);
+
+INSERT INTO MarkLog_New (Id, PartNumber, SerialNumber, QRData, TimestampUtc, Username, Result, HeatLotNumber, GeneratedSerial, UserId)
+SELECT Id,
+       PartNumber,
+       SerialNumber,
+       QRData,
+       TimestampUtc,
+       Username,
+       Result,
+       HeatLotNumber,
+       GeneratedSerial,
+       UserId
+FROM MarkLog;
+
+DROP TABLE MarkLog;
+ALTER TABLE MarkLog_New RENAME TO MarkLog;
+
+CREATE UNIQUE INDEX IF NOT EXISTS UX_MarkLog_Part_Serial
+ON MarkLog (PartNumber, SerialNumber);")
+        ExecuteNonQuery(connection, "PRAGMA foreign_keys=ON;")
+    End Sub
+
+    Private Shared Sub RebuildPartSelectionLogWithUserForeignKey(connection As SqliteConnection)
+        ExecuteNonQuery(connection, "PRAGMA foreign_keys=OFF;")
+        ExecuteNonQuery(connection, "
+CREATE TABLE PartSelectionLog_New (
+    Id INTEGER PRIMARY KEY AUTOINCREMENT,
+    PartId INTEGER NOT NULL,
+    PartNumber TEXT NOT NULL,
+    SelectedBy TEXT NOT NULL,
+    SelectedByUserId INTEGER,
+    SelectedRole INTEGER NOT NULL,
+    TimestampUtc TEXT NOT NULL,
+    FOREIGN KEY (SelectedByUserId) REFERENCES Users(Id)
+);
+
+INSERT INTO PartSelectionLog_New (Id, PartId, PartNumber, SelectedBy, SelectedByUserId, SelectedRole, TimestampUtc)
+SELECT Id,
+       PartId,
+       PartNumber,
+       SelectedBy,
+       SelectedByUserId,
+       SelectedRole,
+       TimestampUtc
+FROM PartSelectionLog;
+
+DROP TABLE PartSelectionLog;
+ALTER TABLE PartSelectionLog_New RENAME TO PartSelectionLog;")
+        ExecuteNonQuery(connection, "PRAGMA foreign_keys=ON;")
     End Sub
 
     Private Shared Function GetSetting(connection As SqliteConnection, key As String, defaultValue As String) As String
@@ -521,46 +840,38 @@ ON CONFLICT(Key) DO UPDATE SET Value = excluded.Value;"
 
     Private Shared Sub SeedWorkbookParts(connection As SqliteConnection)
         Dim seeds = {
-            New PartRecord With {.PartNumber = "B3F00401", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#.3", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F00401.ezd", .IsActive = True},
-            New PartRecord With {.PartNumber = "B3F02001", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#.0", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F02001.ezd"},
-            New PartRecord With {.PartNumber = "B3F02301", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#.0", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F02301.ezd"},
-            New PartRecord With {.PartNumber = "B3F03901", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "B", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F03901.ezd"},
-            New PartRecord With {.PartNumber = "B3F07601", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#1", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F07601.ezd"},
-            New PartRecord With {.PartNumber = "B3F11901", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#1", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F11901.ezd"},
-            New PartRecord With {.PartNumber = "B3F13201", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F13201.ezd"},
-            New PartRecord With {.PartNumber = "B3F15301", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F15301.ezd"},
-            New PartRecord With {.PartNumber = "B3F16301", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F16301.ezd"},
-            New PartRecord With {.PartNumber = "B3F16401", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F16401.ezd"},
-            New PartRecord With {.PartNumber = "B3F18701", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "K", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F18701.ezd"},
-            New PartRecord With {.PartNumber = "B3F19901", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B3F19901.ezd"},
-            New PartRecord With {.PartNumber = "B8761001", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "K", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "C:\Laser\Templates\B8761001.ezd"}
+            New PartRecord With {.PartNumber = "B3F00401", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#.3", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F00401 COLOUR NEW FW - Copy - Copy.ezd", .IsActive = True},
+            New PartRecord With {.PartNumber = "B3F02001", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#.0", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F02001 COLOUR NEW FW.ezd"},
+            New PartRecord With {.PartNumber = "B3F02301", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#.0", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F02301 COLOUR NEW FW.ezd"},
+            New PartRecord With {.PartNumber = "B3F03901", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "B", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F03901 COLOUR NEW FW.ezd"},
+            New PartRecord With {.PartNumber = "B3F07601", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#1", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F07601 COLOUR NEW FW.ezd"},
+            New PartRecord With {.PartNumber = "B3F11901", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#1", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F11901 COLOUR NEW FW.ezd"},
+            New PartRecord With {.PartNumber = "B3F13201", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F13201 COLOUR NEW FW - Copy.ezd"},
+            New PartRecord With {.PartNumber = "B3F15301", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F15301 COLOUR NEW FW.ezd"},
+            New PartRecord With {.PartNumber = "B3F16301", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F16301 COLOUR NEW FW - Copy.ezd"},
+            New PartRecord With {.PartNumber = "B3F16401", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F16401 COLOUR NEW FW.ezd"},
+            New PartRecord With {.PartNumber = "B3F18701", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "K", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F18701 COLOUR NEW FW.ezd"},
+            New PartRecord With {.PartNumber = "B3F19901", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "#", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B3F19901 COLOUR NEW FW.ezd"},
+            New PartRecord With {.PartNumber = "B8761001", .CustomerItemCode = "7201097", .Material = "FG260", .Pattern = "K", .ProductName = "FLYWHEEL", .SupplierName = "SREERAMENGG", .TemplateFile = "D:\QUALITY-3\B8761001 COLOUR NEW FW.ezd"}
         }
 
         For Each seed In seeds
             seed.VendorCode = seed.CustomerItemCode
             seed.CustomerCode = seed.CustomerItemCode
-            seed.QrFormat = "{CustomerItemCode}${PartNumber}${DatePrefixSerial}${MarkDate}${MonthLabel}${HeatLot}${Material}${Pattern}${ProductName}${SupplierName}$"
+            seed.QrFormat = "{CustomerItemCode}${PartNumber}${DatePrefixSerial}${MarkDate}${MonthLabel}${Material}${HeatLot}${Pattern}${ProductName}${SupplierName}$"
 
             Using command = connection.CreateCommand()
                 command.CommandText = "
 INSERT INTO Parts (PartNumber, VendorCode, PlantCode, CustomerCode, QRPrefix, QRFormat, CustomerItemCode, Material, Pattern, ProductName, SupplierName, TemplateFile, IsActive)
 VALUES ($partNumber, $vendorCode, '', $customerCode, '', $qrFormat, $customerItemCode, $material, $pattern, $productName, $supplierName, $templateFile, $isActive)
-ON CONFLICT(PartNumber) DO UPDATE SET
-    VendorCode = excluded.VendorCode,
-    CustomerCode = excluded.CustomerCode,
-    QRFormat = excluded.QRFormat,
-    CustomerItemCode = excluded.CustomerItemCode,
-    Material = excluded.Material,
-    Pattern = excluded.Pattern,
-    ProductName = excluded.ProductName,
-    SupplierName = excluded.SupplierName,
-    TemplateFile = excluded.TemplateFile;"
+ON CONFLICT(PartNumber) DO NOTHING;"
                 AddPartParameters(command, seed)
                 command.Parameters.AddWithValue("$isActive", If(seed.IsActive, 1, 0))
                 command.ExecuteNonQuery()
             End Using
         Next
 
+        MigrateSeededTemplatePaths(connection, seeds)
         MigrateLegacyDemoPart(connection)
 
         Using activeCommand = connection.CreateCommand()
@@ -572,6 +883,22 @@ ON CONFLICT(PartNumber) DO UPDATE SET
                 End Using
             End If
         End Using
+    End Sub
+
+    Private Shared Sub MigrateSeededTemplatePaths(connection As SqliteConnection, seeds As IEnumerable(Of PartRecord))
+        For Each seed In seeds
+            Using command = connection.CreateCommand()
+                command.CommandText = "
+UPDATE Parts
+SET TemplateFile = $newTemplateFile
+WHERE PartNumber = $partNumber
+  AND TemplateFile = $oldTemplateFile;"
+                command.Parameters.AddWithValue("$newTemplateFile", seed.TemplateFile)
+                command.Parameters.AddWithValue("$partNumber", seed.PartNumber)
+                command.Parameters.AddWithValue("$oldTemplateFile", $"C:\Laser\Templates\{seed.PartNumber}.ezd")
+                command.ExecuteNonQuery()
+            End Using
+        Next
     End Sub
 
     Private Shared Sub MigrateLegacyDemoPart(connection As SqliteConnection)
@@ -598,8 +925,8 @@ WHERE PartNumber = 'ABC123';"
     Private Shared Sub InsertUser(connection As SqliteConnection, username As String, password As String, role As UserRole)
         Using command = connection.CreateCommand()
             command.CommandText = "
-INSERT INTO Users (Username, PasswordHash, Role)
-VALUES ($username, $passwordHash, $role);"
+INSERT INTO Users (Username, PasswordHash, Role, IsDeleted)
+VALUES ($username, $passwordHash, $role, 0);"
             command.Parameters.AddWithValue("$username", username)
             command.Parameters.AddWithValue("$passwordHash", PasswordHasher.HashPassword(password))
             command.Parameters.AddWithValue("$role", CInt(role))
