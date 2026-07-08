@@ -28,9 +28,19 @@ jobs:
         with:
           dotnet-version: 8.0.x
 
+      - name: Set app version
+        shell: pwsh
+        run: |
+          $shortSha = $env:GITHUB_SHA.Substring(0, 7)
+          $appVersion = "1.0.0+build.$env:GITHUB_RUN_NUMBER.$shortSha"
+          $fileVersion = "1.0.0.$env:GITHUB_RUN_NUMBER"
+
+          Add-Content -Path $env:GITHUB_ENV -Value "APP_VERSION=$appVersion"
+          Add-Content -Path $env:GITHUB_ENV -Value "APP_FILE_VERSION=$fileVersion"
+
       - name: Publish win-x64 and win-x86
         shell: pwsh
-        run: ./scripts/publish-win.ps1
+        run: ./scripts/publish-win.ps1 -Version 1.0.0 -FileVersion $env:APP_FILE_VERSION -InformationalVersion $env:APP_VERSION
 
       - name: Set artifact names
         shell: pwsh
@@ -78,6 +88,8 @@ jobs:
 
           $downloadNote
 
+          App version: ``$env:APP_VERSION``
+
           Workflow run: [$env:GITHUB_RUN_ID]($runUrl)
 
           Artifacts:
@@ -123,6 +135,8 @@ jobs:
         run: |
           $notes = @"
           Self-contained Windows builds.
+
+          Version: $env:APP_VERSION
 
           Commit: $env:GITHUB_SHA
 

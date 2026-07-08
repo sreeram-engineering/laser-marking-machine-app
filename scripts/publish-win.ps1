@@ -1,5 +1,8 @@
 param(
-    [string]$Configuration = "Release"
+    [string]$Configuration = "Release",
+    [string]$Version = "1.0.0",
+    [string]$FileVersion = "1.0.0.0",
+    [string]$InformationalVersion = "1.0.0+local"
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,6 +30,10 @@ foreach ($runtime in $runtimes) {
         -p:IncludeNativeLibrariesForSelfExtract=true `
         -p:DebugType=None `
         -p:DebugSymbols=false `
+        -p:Version=$Version `
+        -p:AssemblyVersion=1.0.0.0 `
+        -p:FileVersion=$FileVersion `
+        -p:InformationalVersion=$InformationalVersion `
         -o $outDir
 
     $sourceExe = Join-Path $outDir "LaserMarkingApp.exe"
@@ -36,3 +43,4 @@ foreach ($runtime in $runtimes) {
 }
 
 Write-Host "Published release executables in $dist"
+Write-Host "App version: $InformationalVersion"
