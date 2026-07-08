@@ -18,6 +18,8 @@ jobs:
   build:
     name: Publish self-contained Windows builds
     runs-on: windows-latest
+    env:
+      BASE_VERSION: 1.0.0
 
     steps:
       - name: Checkout
@@ -32,15 +34,15 @@ jobs:
         shell: pwsh
         run: |
           $shortSha = $env:GITHUB_SHA.Substring(0, 7)
-          $appVersion = "1.0.0+build.$env:GITHUB_RUN_NUMBER.$shortSha"
-          $fileVersion = "1.0.0.$env:GITHUB_RUN_NUMBER"
+          $appVersion = "$env:BASE_VERSION+build.$env:GITHUB_RUN_NUMBER.$shortSha"
+          $fileVersion = "$env:BASE_VERSION.$env:GITHUB_RUN_NUMBER"
 
           Add-Content -Path $env:GITHUB_ENV -Value "APP_VERSION=$appVersion"
           Add-Content -Path $env:GITHUB_ENV -Value "APP_FILE_VERSION=$fileVersion"
 
       - name: Publish win-x64 and win-x86
         shell: pwsh
-        run: ./scripts/publish-win.ps1 -Version 1.0.0 -FileVersion $env:APP_FILE_VERSION -InformationalVersion $env:APP_VERSION
+        run: ./scripts/publish-win.ps1 -Version $env:BASE_VERSION -FileVersion $env:APP_FILE_VERSION -InformationalVersion $env:APP_VERSION
 
       - name: Set artifact names
         shell: pwsh
