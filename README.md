@@ -21,6 +21,9 @@ Build on a Windows machine with the .NET SDK installed:
 
 Release executables are written to `dist\`.
 
+Published builds include a hybrid app version in the format `1.0.0+build.<run-number>.<commit>`.
+Open the bottom-right info button in the app to view the installed version.
+
 ## Download From GitHub Releases
 
 The repository creates a GitHub Release after each successful build on `main`.

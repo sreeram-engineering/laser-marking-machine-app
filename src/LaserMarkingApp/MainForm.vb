@@ -49,6 +49,7 @@ Public Class MainForm
     Private ReadOnly _setActiveButton As Button
     Private ReadOnly _usersButton As Button
     Private ReadOnly _logsButton As Button
+    Private ReadOnly _aboutButton As Button
     Private ReadOnly _baseBounds As New Dictionary(Of Control, Rectangle)()
     Private ReadOnly _baseFontSizes As New Dictionary(Of Control, Single)()
 
@@ -61,7 +62,7 @@ Public Class MainForm
         _activePart = _database.GetActivePart()
         _currentUser = LoadOperatorUser()
 
-        Text = "Laser Marking QR App"
+        Text = $"{AppVersion.ProductName} {AppVersion.DisplayVersion}"
         StartPosition = FormStartPosition.Manual
         FormBorderStyle = FormBorderStyle.None
         TopMost = True
@@ -153,7 +154,19 @@ Public Class MainForm
             _setterPreviewLabel, _browseButton, _usersButton, _deletePartButton, _logsButton, _saveButton, _setActiveButton, _setterStatusLabel
         })
 
+        _aboutButton = New Button With {
+            .Text = "i",
+            .Location = New Point(932, 596),
+            .Size = New Size(32, 32),
+            .Font = New Font(Font, FontStyle.Bold),
+            .TabStop = False,
+            .UseVisualStyleBackColor = True
+        }
+        AddHandler _aboutButton.Click, AddressOf AboutButton_Click
+
         _contentPanel.Controls.AddRange({operatorPanel, _setterPanel})
+        _contentPanel.Controls.Add(_aboutButton)
+        _aboutButton.BringToFront()
         Controls.Add(_contentPanel)
 
         AddHandler MouseMove, AddressOf AnyActivity
@@ -224,6 +237,13 @@ Public Class MainForm
             scaledHeight)
 
         ApplyScaledLayout(_contentPanel, scale)
+        KeepOverlayControlsInFront()
+    End Sub
+
+    Private Sub KeepOverlayControlsInFront()
+        If _aboutButton IsNot Nothing Then
+            _aboutButton.BringToFront()
+        End If
     End Sub
 
     Private Sub ApplyScaledLayout(parent As Control, scale As Single)
@@ -693,6 +713,13 @@ Public Class MainForm
             e.SuppressKeyPress = True
             Close()
         End If
+    End Sub
+
+    Private Sub AboutButton_Click(sender As Object, e As EventArgs)
+        Using about = New AboutForm()
+            about.ShowDialog(Me)
+        End Using
+        _serialBox.Focus()
     End Sub
 
     Private Sub WireActivityHandlers(parent As Control)
