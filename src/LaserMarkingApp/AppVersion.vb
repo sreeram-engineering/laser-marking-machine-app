@@ -12,7 +12,7 @@ Public NotInheritable Class AppVersion
 
     Public Shared ReadOnly Property InformationalVersion As String
         Get
-            Dim currentAssembly = Assembly.GetExecutingAssembly()
+            Dim currentAssembly As System.Reflection.Assembly = System.Reflection.Assembly.GetExecutingAssembly()
             Dim attribute = currentAssembly.GetCustomAttribute(Of AssemblyInformationalVersionAttribute)()
             If attribute Is Nothing OrElse String.IsNullOrWhiteSpace(attribute.InformationalVersion) Then
                 Return currentAssembly.GetName().Version.ToString()
