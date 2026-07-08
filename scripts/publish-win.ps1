@@ -1,6 +1,7 @@
 param(
     [string]$Configuration = "Release",
     [string]$Version = "1.0.0",
+    [string]$AssemblyVersion = "1.0.0.0",
     [string]$FileVersion = "1.0.0.0",
     [string]$InformationalVersion = "1.0.0+local"
 )
@@ -31,7 +32,7 @@ foreach ($runtime in $runtimes) {
         -p:DebugType=None `
         -p:DebugSymbols=false `
         -p:Version=$Version `
-        -p:AssemblyVersion=1.0.0.0 `
+        -p:AssemblyVersion=$AssemblyVersion `
         -p:FileVersion=$FileVersion `
         -p:InformationalVersion=$InformationalVersion `
         -o $outDir
