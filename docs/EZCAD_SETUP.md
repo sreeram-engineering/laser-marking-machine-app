@@ -14,4 +14,4 @@ Use EZCAD2 v2.14.10 only as the marking engine.
 5. Save the `.ezd` template.
 6. In the app, set the part template path to that `.ezd` file and press `Set Active`.
 
-The app writes one QR payload to `QRDATA.TXT` per serial number. Operators should not edit QR values inside EZCAD.
+The app writes one QR payload to the same `QRDATA.TXT` file per serial number. It updates the file in place so EZCAD's text-file QR object stays connected between marks. Operators should not edit, delete, replace, or reselect the QR file inside EZCAD during production.

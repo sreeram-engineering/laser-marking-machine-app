@@ -793,14 +793,17 @@ Public Class MainForm
         End If
 
         System.IO.Directory.CreateDirectory(outputDirectory)
-        Dim tempPath = System.IO.Path.Combine(outputDirectory, $"{System.IO.Path.GetFileName(outputPath)}.{Guid.NewGuid():N}.tmp")
-        File.WriteAllText(tempPath, qrData, Encoding.UTF8)
 
-        If File.Exists(outputPath) Then
-            File.Replace(tempPath, outputPath, Nothing)
-        Else
-            File.Move(tempPath, outputPath)
-        End If
+        ' Keep the same file on disk. EZCAD's text-file QR object can retain a
+        ' handle to QRDATA.TXT; replacing the file disconnects that handle and
+        ' makes the QR object appear blank until the file is selected again.
+        Dim qrBytes = New UTF8Encoding(False).GetBytes(qrData)
+        Using outputStream = New FileStream(outputPath, FileMode.OpenOrCreate, FileAccess.Write, FileShare.Read)
+            outputStream.Position = 0
+            outputStream.Write(qrBytes, 0, qrBytes.Length)
+            outputStream.SetLength(qrBytes.Length)
+            outputStream.Flush(True)
+        End Using
     End Sub
 
     Private Shared Sub CopyTemplateToActiveFolder(templateFile As String, activeFolder As String)
